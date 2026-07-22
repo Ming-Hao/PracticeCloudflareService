@@ -1,0 +1,8 @@
+name = "practice-cloudflare-service"
+compatibility_date = "2026-07-21"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "shortlink-db"
+database_id = "507eb2aa-bb32-4aa3-b719-67c34d207d9b"
