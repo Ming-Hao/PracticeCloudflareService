@@ -41,3 +41,6 @@ __screenshots__/
 # Wrangler / Cloudflare local dev state
 .wrangler
 .dev.vars
+
+# Agent plans
+.agent_plans/
