@@ -215,6 +215,7 @@ input:focus {
 
 .short-url {
   color: #2ecc71;
+  word-break: break-all;
 }
 
 .result {
@@ -222,7 +223,6 @@ input:focus {
   align-items: center;
   gap: 0.5rem;
   margin-top: 1rem;
-  word-break: break-all;
 }
 
 .result-dialog {
