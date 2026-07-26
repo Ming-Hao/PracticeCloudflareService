@@ -5,7 +5,7 @@ export async function onRequestGet(context) {
     "SELECT target_url FROM links WHERE short_code = ? AND deleted_at IS NULL"
   ).bind(code).first();
   if (!link) {
-    return new Response("找不到這個短網址", { status: 404 });
+    return new Response("Short link not found", { status: 404 });
   }
   await env.DB.prepare(
     "UPDATE links SET clicks = clicks + 1 WHERE short_code = ?"
