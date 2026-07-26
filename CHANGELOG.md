@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-07-26
+
+### Fixed
+
+- Copy button text no longer wraps mid-word.
+
+### Changed
+
+- Translated remaining Traditional Chinese comments and error strings in
+  `functions/` to English; updated CLAUDE.md's language convention note
+  and trimmed a few Architecture bullets to focus on non-obvious details.
+
 ## [1.1.0] - 2026-07-26
 
 ### Added
@@ -27,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Public domain LICENSE file.
 - `.gitignore` excludes the `.agent_plans` directory.
 
-[Unreleased]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Ming-Hao/PracticeCloudflareService/tree/v1.0.0
