@@ -3,5 +3,7 @@ CREATE TABLE IF NOT EXISTS links (
   short_code TEXT UNIQUE NOT NULL,
   target_url TEXT NOT NULL,
   clicks INTEGER DEFAULT 0,
-  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  delete_token TEXT,
+  deleted_at TEXT
 );

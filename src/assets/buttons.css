@@ -1,0 +1,94 @@
+.btn-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.btn-primary {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 0.4rem;
+  font-size: 1rem;
+  background: #1e8e5a;
+  color: #fff;
+  cursor: pointer;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #187249;
+}
+
+.btn-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.btn-secondary {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.4rem;
+  font-size: 1rem;
+  background: transparent;
+  color: var(--color-heading);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.btn-secondary:hover {
+  background: var(--color-background-mute);
+}
+
+.btn-secondary:hover .btn-icon {
+  color: #2ecc71;
+}
+
+.btn-secondary.btn-danger:hover {
+  background: rgba(231, 76, 60, 0.1);
+  border-color: rgba(231, 76, 60, 0.5);
+}
+
+.btn-secondary.btn-danger:hover .btn-icon {
+  color: #e74c3c;
+}
+
+/* Solid destructive variant for confirm buttons (e.g. "Delete" in ConfirmDialog), as opposed to
+   .btn-secondary.btn-danger's hover-only red wash used for dismiss/leave actions. */
+.btn-primary.btn-danger {
+  background: #c0392b;
+}
+
+.btn-primary.btn-danger:hover {
+  background: #a5311f;
+}
+
+.btn-primary:focus,
+.btn-secondary:focus {
+  outline: none;
+}
+
+/* Icon-only button that reveals a text label on hover (e.g. a corner "Close" button). */
+.btn-reveal {
+  gap: 0;
+}
+
+.btn-reveal-label {
+  max-width: 0;
+  margin-left: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: max-width 0.15s ease, margin-left 0.15s ease, opacity 0.15s ease;
+}
+
+.btn-reveal:hover .btn-reveal-label {
+  max-width: 4rem;
+  margin-left: 0.4rem;
+  opacity: 1;
+}

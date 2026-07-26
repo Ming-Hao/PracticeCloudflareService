@@ -35,12 +35,17 @@ export async function onRequestPost(context) {
       if (!existing) break; // 沒撞到，就用這個
     }
 
+    // 產生刪除用的 token，僅在這次回應中回傳一次
+    const deleteToken = crypto.randomUUID();
+    // 明確產生時間戳記並一併存入，確保回應內容與資料庫紀錄一致（伺服器為權威來源）
+    const createdAt = new Date().toISOString();
+
     // 存進資料庫
     await env.DB.prepare(
-      "INSERT INTO links (short_code, target_url) VALUES (?, ?)"
-    ).bind(code, url).run();
+      "INSERT INTO links (short_code, target_url, delete_token, created_at) VALUES (?, ?, ?, ?)"
+    ).bind(code, url, deleteToken, createdAt).run();
 
-    return Response.json({ short_code: code, target_url: url });
+    return Response.json({ short_code: code, target_url: url, delete_token: deleteToken, created_at: createdAt });
   } catch (err) {
     return Response.json({ error: "伺服器錯誤：" + err.message }, { status: 500 });
   }

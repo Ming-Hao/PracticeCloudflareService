@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { useHistory } from '@/composables/useHistory'
+import HistoryTrigger from '@/components/history/HistoryTrigger.vue'
+import HistoryDrawer from '@/components/history/HistoryDrawer.vue'
 
 const url = ref('')
 const shortUrl = ref('')
@@ -7,6 +10,9 @@ const error = ref('')
 const loading = ref(false)
 const copied = ref(false)
 const dialogRef = ref<HTMLDialogElement | null>(null)
+const historyOpen = ref(false)
+
+const { addToSessionList } = useHistory()
 
 watch(url, () => {
   error.value = ''
@@ -28,6 +34,12 @@ async function onSubmit() {
       return
     }
     shortUrl.value = `${window.location.origin}/${data.short_code}`
+    addToSessionList({
+      short_code: data.short_code,
+      target_url: data.target_url,
+      delete_token: data.delete_token,
+      created_at: data.created_at,
+    })
     dialogRef.value?.showModal()
   } catch {
     error.value = 'Network error, please try again'
@@ -44,6 +56,9 @@ async function copyShortUrl() {
 </script>
 
 <template>
+  <HistoryTrigger :open="historyOpen" @toggle="historyOpen = !historyOpen" />
+  <HistoryDrawer :open="historyOpen" @close="historyOpen = false" />
+
   <main class="shortener">
     <form @submit.prevent="onSubmit">
       <input
@@ -103,10 +118,32 @@ async function copyShortUrl() {
       </button>
     </div>
 
-    <dialog ref="dialogRef" class="result-dialog">
-      <p class="dialog-title">
-        <span class="dialog-icon">✓</span> Short link created!
-      </p>
+    <dialog ref="dialogRef" class="result-dialog" @keydown.esc="dialogRef?.close()">
+      <div class="dialog-header">
+        <p class="dialog-title">
+          <span class="dialog-icon">✓</span> Short link created!
+        </p>
+        <button
+          type="button"
+          class="btn-secondary btn-danger btn-reveal"
+          aria-label="Close"
+          @click="dialogRef?.close()"
+        >
+          <svg
+            class="btn-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+          <span class="btn-reveal-label">Close</span>
+        </button>
+      </div>
       <p class="dialog-url">{{ shortUrl }}</p>
       <div class="dialog-actions">
         <button type="button" class="btn-primary" @click="copyShortUrl">
@@ -136,21 +173,6 @@ async function copyShortUrl() {
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
           {{ copied ? 'Copied!' : 'Copy' }}
-        </button>
-        <button type="button" class="btn-secondary" @click="dialogRef?.close()">
-          <svg
-            class="btn-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-          Close
         </button>
       </div>
     </dialog>
@@ -217,17 +239,30 @@ input:focus {
   background: var(--color-background-soft);
   color: var(--color-text);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  outline: none;
 }
 
 .result-dialog::backdrop {
   background: rgba(0, 0, 0, 0.4);
 }
 
+.dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
+
+.dialog-header .btn-reveal {
+  padding: 0.4rem;
+}
+
 .dialog-title {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin: 0 0 1rem;
+  margin: 0;
   font-weight: 600;
   color: #2ecc71;
 }
@@ -262,53 +297,4 @@ input:focus {
   gap: 0.5rem;
 }
 
-.btn-icon {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-}
-
-.btn-primary {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 0.4rem;
-  font-size: 1rem;
-  background: #1e8e5a;
-  color: #fff;
-  cursor: pointer;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #187249;
-}
-
-.btn-primary:disabled {
-  cursor: not-allowed;
-  opacity: 0.7;
-}
-
-.btn-secondary {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.4rem;
-  font-size: 1rem;
-  background: transparent;
-  color: var(--color-heading);
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.btn-secondary:hover {
-  background: var(--color-background-mute);
-}
-
-.btn-secondary:hover .btn-icon {
-  color: #e74c3c;
-}
 </style>
