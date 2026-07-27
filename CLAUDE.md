@@ -48,6 +48,11 @@ npm run dev                   # serves the Vite SPA on http://localhost:5173, pr
 - All local history (which links "belong" to a user, on this device) lives client-side: encrypted with a user-chosen password (PBKDF2 + AES-GCM, random salt/IV per record) and stored in IndexedDB. The password itself is never persisted (memory-only `currentIdentity`) and there is no password recovery — see the in-app copy in `PasswordPromptDialog.vue`.
 - A link can be saved locally under more than one password ("save as" on an already-saved entry re-encrypts under a new password and optionally deletes the old encrypted copy, independent of the server-side row). Because of this, one password's local copy of a link can go stale (already deleted via another password) without the server being able to push a notification — the frontend only discovers this reactively when the user clicks the link (404) or deletes it again (idempotent 200), see `removeStaleLocalOnly` / `onLinkClick` in `HistoryItem.vue`.
 
+## Workflow
+
+- Before implementing a component or section with no existing visual precedent in the repo (e.g. a brand-new drawer, dialog, or page layout — not modeled on anything already built), first produce a local HTML mockup via the mockup skill and get it approved before editing files under `src/`. Tweaks to an existing component's layout, spacing, or colors don't need this step.
+- When a single change touches styles across two or more `.vue` files, run `/simplify` before wrapping up to catch duplicated styles/classes that should be consolidated (e.g. into shared files like `src/assets/buttons.css`).
+
 ## Conventions observed in this repo
 
 - Backend code (`functions/`) uses plain JavaScript (`.js`), not TypeScript, even though the frontend is TypeScript.
