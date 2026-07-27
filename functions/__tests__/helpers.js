@@ -3,6 +3,22 @@ import { readFileSync } from 'node:fs'
 
 const SCHEMA = readFileSync(new URL('../../schema.sql', import.meta.url), 'utf8')
 
+/**
+ * Collapses schema.sql onto a single line for `d1 exec`, which rejects statements
+ * spanning multiple lines. `--` comments must be stripped *before* the collapse:
+ * otherwise everything after the first `--` becomes part of that comment, the whole
+ * schema is swallowed, and d1 fails with "SQL code did not contain a statement" —
+ * an error that points nowhere near the added comment that actually caused it.
+ * Assumes `--` never appears inside a string literal, which holds for schema.sql.
+ */
+function flattenSchema(sql) {
+  return sql
+    .split('\n')
+    .map((line) => line.replace(/--.*$/, '').trim())
+    .filter((line) => line !== '')
+    .join(' ')
+}
+
 /** Returns a fresh, schema-applied D1 instance for a single test. */
 export async function createTestDb() {
   const mf = new Miniflare({
@@ -11,7 +27,7 @@ export async function createTestDb() {
     d1Databases: { DB: ':memory:' },
   })
   const db = await mf.getD1Database('DB')
-  await db.exec(SCHEMA.replace(/\n/g, ' ')) // d1 exec rejects multi-line statements
+  await db.exec(flattenSchema(SCHEMA))
   return { db, dispose: () => mf.dispose() }
 }
 
