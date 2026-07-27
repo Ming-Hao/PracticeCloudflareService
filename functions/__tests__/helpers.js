@@ -15,6 +15,22 @@ export async function createTestDb() {
   return { db, dispose: () => mf.dispose() }
 }
 
+/**
+ * Runs `fn` against a fresh test DB and guarantees disposal via try/finally —
+ * even if `fn` throws (e.g. a failing assertion), so the underlying Miniflare
+ * process is never leaked. A leaked instance keeps a live child-process handle
+ * open, which prevents the Node test process from exiting (it hangs instead of
+ * finishing), rather than just failing the one test.
+ */
+export async function withTestDb(fn) {
+  const { db, dispose } = await createTestDb()
+  try {
+    return await fn(db)
+  } finally {
+    await dispose()
+  }
+}
+
 /** Assembles a Pages Functions context object. */
 export function createContext({ db, method = 'GET', url = 'https://example.test/', body, rawBody, params = {} }) {
   const waitUntilTasks = []
