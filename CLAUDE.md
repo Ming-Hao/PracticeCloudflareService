@@ -14,7 +14,7 @@ npm run dev         # start Vite dev server (frontend), proxies /api to localhos
 npm run build       # type-check (vue-tsc --build) + production build to dist/
 npm run type-check  # vue-tsc --build only
 npm run preview     # preview the production build
-npm test            # node --test — runs src/**/__tests__/**/*.test.ts (currently just useHistory.test.ts)
+npm test            # node --test — runs every __tests__/**/*.test.{ts,js} under src/ and functions/
 ```
 
 There is no lint script configured. `npm test` runs on Node's built-in test runner and type-stripping (no ts-node/vitest) — TypeScript syntax that only type-strips (e.g. `interface`, type annotations) works, but non-erasable TS syntax like constructor parameter properties (`constructor(public x: number)`) does not; write plain-JS-shaped classes in test-covered code instead.
