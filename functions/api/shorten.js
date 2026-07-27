@@ -11,9 +11,14 @@ export function generateCode(length = 6) {
 export async function onRequestPost(context, { codeGenerator = generateCode } = {}) {
   const { request, env } = context;
 
+  let url;
   try {
-    const { url } = await request.json();
+    ({ url } = await request.json());
+  } catch {
+    return Response.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
+  try {
     // Basic check: is this a valid http/https URL
     let parsedUrl;
     try {
@@ -47,6 +52,7 @@ export async function onRequestPost(context, { codeGenerator = generateCode } = 
 
     return Response.json({ short_code: code, target_url: url, delete_token: deleteToken, created_at: createdAt });
   } catch (err) {
-    return Response.json({ error: "Server error: " + err.message }, { status: 500 });
+    console.error("POST /api/shorten failed:", err);
+    return Response.json({ error: "Something went wrong, please try again" }, { status: 500 });
   }
 }
