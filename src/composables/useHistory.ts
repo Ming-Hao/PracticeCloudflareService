@@ -19,9 +19,13 @@ export interface HistoryDbDeps {
   deleteRecord: typeof historyDb.deleteRecord
 }
 
-// Factory so tests can inject fake historyDb deps and get an isolated store,
+export interface HistoryDeps extends HistoryDbDeps {
+  fetch: typeof globalThis.fetch
+}
+
+// Factory so tests can inject fake historyDb/fetch deps and get an isolated store,
 // instead of sharing the real app's module-level singleton (see bottom of file).
-export function createHistoryStore(deps: HistoryDbDeps = historyDb) {
+export function createHistoryStore(deps: HistoryDeps = { ...historyDb, fetch: globalThis.fetch.bind(globalThis) }) {
   const sessionList = ref<HistoryEntry[]>([])
   const savedList = ref<SavedEntry[]>([])
   const currentIdentity = ref<string | null>(null)
@@ -41,7 +45,7 @@ export function createHistoryStore(deps: HistoryDbDeps = historyDb) {
   }
 
   async function deleteLinkOnServer(shortCode: string, deleteToken: string): Promise<void> {
-    const res = await fetch(`/${shortCode}`, {
+    const res = await deps.fetch(`/${shortCode}`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ delete_token: deleteToken }),

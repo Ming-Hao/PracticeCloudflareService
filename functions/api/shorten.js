@@ -1,5 +1,5 @@
 // Generates a random short code
-function generateCode(length = 6) {
+export function generateCode(length = 6) {
   const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let code = "";
   for (let i = 0; i < length; i++) {
@@ -8,7 +8,7 @@ function generateCode(length = 6) {
   return code;
 }
 
-export async function onRequestPost(context) {
+export async function onRequestPost(context, { codeGenerator = generateCode } = {}) {
   const { request, env } = context;
 
   try {
@@ -28,7 +28,7 @@ export async function onRequestPost(context) {
     // Generate a unique short code
     let code;
     for (let attempt = 0; attempt < 5; attempt++) {
-      code = generateCode();
+      code = codeGenerator();
       const existing = await env.DB.prepare(
         "SELECT short_code FROM links WHERE short_code = ?"
       ).bind(code).first();
