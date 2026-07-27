@@ -16,12 +16,17 @@ export async function createTestDb() {
 }
 
 /** Assembles a Pages Functions context object. */
-export function createContext({ db, method = 'GET', url = 'https://example.test/', body, params = {} }) {
+export function createContext({ db, method = 'GET', url = 'https://example.test/', body, rawBody, params = {} }) {
   const waitUntilTasks = []
   return {
     request: new Request(url, {
       method,
-      ...(body === undefined ? {} : { body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } }),
+      // rawBody bypasses JSON.stringify — used to simulate a malformed request body.
+      ...(rawBody !== undefined
+        ? { body: rawBody, headers: { 'Content-Type': 'application/json' } }
+        : body === undefined
+          ? {}
+          : { body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } }),
     }),
     env: { DB: db },
     params,
