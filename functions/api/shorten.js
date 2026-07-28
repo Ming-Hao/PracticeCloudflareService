@@ -31,13 +31,22 @@ export async function onRequestPost(context, { codeGenerator = generateCode } = 
     }
 
     // Generate a unique short code
-    let code;
+    let code = null;
     for (let attempt = 0; attempt < 5; attempt++) {
-      code = codeGenerator();
+      const candidate = codeGenerator();
       const existing = await env.DB.prepare(
         "SELECT short_code FROM links WHERE short_code = ?"
-      ).bind(code).first();
-      if (!existing) break; // no collision, use this one
+      ).bind(candidate).first();
+      if (!existing) {
+        code = candidate; // no collision, use this one
+        break;
+      }
+    }
+    // Every attempt collided. Falling through here would insert the last known-colliding
+    // candidate anyway, hit the UNIQUE constraint, and report it as a 500 — a server fault
+    // the client can do nothing about. 503 says "temporarily unavailable, retry" instead.
+    if (code === null) {
+      return Response.json({ error: "Could not allocate a short code, please try again" }, { status: 503 });
     }
 
     // Generate the delete token, only ever returned in this response
