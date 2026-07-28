@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useHistory } from '@/composables/useHistory'
+import CopyButton from '@/components/CopyButton.vue'
 import HistoryTrigger from '@/components/history/HistoryTrigger.vue'
 import HistoryDrawer from '@/components/history/HistoryDrawer.vue'
 
@@ -8,10 +9,10 @@ const url = ref('')
 const shortUrl = ref('')
 const error = ref('')
 const loading = ref(false)
-const copied = ref(false)
-// Separate from `error`: that one renders behind the result dialog, where it would be
-// invisible for a copy triggered from inside the dialog.
-const copyError = ref('')
+// One per copy button, and separate from `error`: `error` renders behind the result
+// dialog, where it would be invisible for a copy triggered from inside the dialog.
+const resultCopyError = ref('')
+const dialogCopyError = ref('')
 const dialogRef = ref<HTMLDialogElement | null>(null)
 const historyOpen = ref(false)
 
@@ -50,21 +51,6 @@ async function onSubmit() {
     loading.value = false
   }
 }
-
-async function copyShortUrl() {
-  copyError.value = ''
-  try {
-    // Rejects when the clipboard permission is denied or the page is not a secure
-    // context. Unhandled, the button just does nothing and the rejection escapes —
-    // Vue does not await click handlers.
-    await navigator.clipboard.writeText(shortUrl.value)
-  } catch {
-    copyError.value = 'Could not copy — please select the link and copy it manually.'
-    return
-  }
-  copied.value = true
-  setTimeout(() => (copied.value = false), 1500)
-}
 </script>
 
 <template>
@@ -100,37 +86,10 @@ async function copyShortUrl() {
 
     <div v-if="shortUrl" class="result">
       <span class="short-url">{{ shortUrl }}</span>
-      <button type="button" class="btn-primary" @click="copyShortUrl">
-        <svg
-          v-if="!copied"
-          class="btn-icon"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-        </svg>
-        <svg
-          v-else
-          class="btn-icon"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <polyline points="20 6 9 17 4 12"></polyline>
-        </svg>
-        {{ copied ? 'Copied!' : 'Copy' }}
-      </button>
+      <CopyButton :text="shortUrl" @error="resultCopyError = $event" />
     </div>
 
-    <p v-if="copyError" class="error">{{ copyError }}</p>
+    <p v-if="resultCopyError" class="error">{{ resultCopyError }}</p>
 
     <dialog ref="dialogRef" class="result-dialog" @keydown.esc="dialogRef?.close()">
       <div class="dialog-header">
@@ -160,36 +119,9 @@ async function copyShortUrl() {
       </div>
       <p class="dialog-url">{{ shortUrl }}</p>
       <div class="dialog-actions">
-        <button type="button" class="btn-primary" @click="copyShortUrl">
-          <svg
-            v-if="!copied"
-            class="btn-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-          </svg>
-          <svg
-            v-else
-            class="btn-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <polyline points="20 6 9 17 4 12"></polyline>
-          </svg>
-          {{ copied ? 'Copied!' : 'Copy' }}
-        </button>
+        <CopyButton :text="shortUrl" @error="dialogCopyError = $event" />
       </div>
-      <p v-if="copyError" class="error">{{ copyError }}</p>
+      <p v-if="dialogCopyError" class="error">{{ dialogCopyError }}</p>
     </dialog>
   </main>
 </template>
