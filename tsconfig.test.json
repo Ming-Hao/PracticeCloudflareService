@@ -1,0 +1,19 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.dom.json",
+  "include": ["src/**/__tests__/*"],
+  "compilerOptions": {
+    // Same safety net as tsconfig.app.json, so test code is checked the way app code is.
+    "noUncheckedIndexedAccess": true,
+
+    // Test files import node:test / node:assert. This lives here rather than in
+    // tsconfig.app.json on purpose: adding it there would let src/ reference
+    // `process` and `Buffer` without a type error and fail in the browser instead.
+    "types": ["node"],
+
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo"
+  }
+}

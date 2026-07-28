@@ -42,8 +42,10 @@ test('tampering with a single ciphertext byte returns null (AES-GCM integrity ch
   const key = await deriveKey('correct-password', randomSalt())
   const { iv, ciphertext } = await encrypt({ value: 'secret' }, key)
 
-  const tampered = new Uint8Array(ciphertext.slice(0))
-  tampered[0] = tampered[0] ^ 0xff
+  // DataView rather than an index write: under noUncheckedIndexedAccess, reading
+  // tampered[0] back out to flip it is typed as possibly undefined.
+  const tampered = new DataView(ciphertext.slice(0))
+  tampered.setUint8(0, tampered.getUint8(0) ^ 0xff)
 
   const result = await decrypt(iv, tampered.buffer, key)
 
