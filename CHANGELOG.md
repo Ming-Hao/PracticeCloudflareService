@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-28
+
+### Changed
+
+- **Saved local history from earlier versions is deleted when you upgrade, and
+  cannot be recovered.** The browser store moves to version 2, and version 1
+  records cannot be carried over: each one carried its own salt and belonged to
+  no identity, and grouping them into one would require the password, which is
+  never stored anywhere. After upgrading, the history drawer will be empty and
+  links saved under a password are gone for good — the short links themselves
+  keep working, but the local record of which ones are yours does not.
+- Unlocking the history derives one key per password instead of one per saved
+  record. A password now resolves to an identity holding the salt, the
+  iteration count and a verifier, so checking it no longer means attempting to
+  decrypt every stored record in turn.
+- The iteration count is stored with each identity rather than read from a
+  constant, so raising it later leaves already-saved records readable instead of
+  silently making them look like they were saved under a different password.
+- Short codes are 8 characters instead of 6, widening the space from 5.7e10 to
+  2.2e14. Existing 6-character links are unaffected and keep resolving.
+
+### Fixed
+
+- Short codes are generated with a cryptographic random source. A short code is
+  the only thing guarding a link, and `Math.random()`'s internal state can be
+  recovered from its output, making subsequent codes predictable.
+- Claiming a short code is a single insert guarded by the unique constraint. The
+  previous check-then-insert left a window in which a concurrent request could
+  take the same code in between.
+
+### Added
+
+- Test files are type-checked through their own TypeScript project; they were
+  excluded from type-checking entirely before.
+
 ## [1.2.0] - 2026-07-28
 
 ### Added
@@ -81,7 +116,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Public domain LICENSE file.
 - `.gitignore` excludes the `.agent_plans` directory.
 
-[Unreleased]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.0.0...v1.1.0
