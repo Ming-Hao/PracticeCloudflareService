@@ -199,7 +199,13 @@ test('a colliding code from the generator is retried until a free one is found',
 // type, since there's no retry-on-insert-failure loop yet (P0-2). Once that loop
 // exists, this test starts doing real work — verifying the retry is scoped to
 // UNIQUE-constraint collisions only, not any DB error.
-test('a non-UNIQUE DB error is not retried and surfaces as 500', async () => {
+test('a non-UNIQUE DB error is not retried and surfaces as 500', async (t) => {
+  // The SQLITE_IOERR below is manufactured by this test, and shorten.js logging it on the
+  // 500 path is the behaviour we want in production. Silence it here only so the stack
+  // trace does not appear in test output and read as a genuine failure. node:test restores
+  // the mock when this test ends, so an unexpected console.error elsewhere is still visible.
+  t.mock.method(console, 'error', () => {})
+
   let generatorCalls = 0
   const codeGenerator = () => {
     generatorCalls++
@@ -229,14 +235,7 @@ test('a non-UNIQUE DB error is not retried and surfaces as 500', async () => {
   assert.equal(generatorCalls, 1)
 })
 
-// --- Deferred tests: [DEFERRED] marks behaviour we have decided NOT to implement in
-// this round (P0-4 was reclassified as hardening, not a bug). They are marked
-// `{ todo: true }` so node:test still runs them and reports them under "# todo"
-// without failing the suite — a green `npm test` therefore means "nothing
-// unexpected", while the todo count is the backlog for the next round.
-// When one of these starts passing, drop the marker instead of leaving it stale. ---
-
-test('[DEFERRED, P0-4] a syntactically valid but 2048+ character url returns 400', { todo: true }, async () => {
+test('a syntactically valid but 2048+ character url returns 400', async () => {
   await withTestDb(async (db) => {
     const res = await onRequestPost(
       createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url: 'https://example.com/' + 'a'.repeat(3000) } }),
@@ -245,7 +244,7 @@ test('[DEFERRED, P0-4] a syntactically valid but 2048+ character url returns 400
   })
 })
 
-test('[DEFERRED, P0-4] a url pointing at this service\'s own domain returns 400', { todo: true }, async () => {
+test('a url pointing at this service\'s own domain returns 400', async () => {
   await withTestDb(async (db) => {
     const res = await onRequestPost(createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url: 'https://example.test/abc' } }))
     assert.equal(res.status, 400)

@@ -1,3 +1,6 @@
+// Matches the de facto browser address bar limit, so a shortened link stays usable everywhere
+const MAX_URL_LENGTH = 2048;
+
 // Generates a random short code
 export function generateCode(length = 6) {
   const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -20,6 +23,14 @@ export async function onRequestPost(context, { codeGenerator = generateCode } = 
 
   try {
     // Basic check: is this a valid http/https URL
+    // Reject non-strings explicitly rather than relying on `new URL(123)` happening to throw
+    if (typeof url !== "string") {
+      return Response.json({ error: "Please provide a valid URL starting with http:// or https://" }, { status: 400 });
+    }
+    // Cap the length before parsing, so an oversized input is never handed to the URL parser or the database
+    if (url.length > MAX_URL_LENGTH) {
+      return Response.json({ error: `URL must be at most ${MAX_URL_LENGTH} characters` }, { status: 400 });
+    }
     let parsedUrl;
     try {
       parsedUrl = new URL(url);
@@ -28,6 +39,13 @@ export async function onRequestPost(context, { codeGenerator = generateCode } = 
     }
     if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
       return Response.json({ error: "Please provide a valid URL starting with http:// or https://" }, { status: 400 });
+    }
+    // Refuse to shorten links pointing back at this service, which would redirect to itself.
+    // Partial protection only: this compares against the hostname the request came in on, so a
+    // deployment reachable under several hostnames (e.g. *.pages.dev plus a custom domain) can
+    // still shorten a link aimed at one of its other hostnames.
+    if (parsedUrl.hostname === new URL(request.url).hostname) {
+      return Response.json({ error: "Cannot shorten a link pointing at this service" }, { status: 400 });
     }
 
     // Generate a unique short code
