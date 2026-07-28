@@ -1,6 +1,10 @@
 import { computed, ref } from 'vue'
-import { deriveKey, encrypt, decrypt, SALT_LENGTH } from '../utils/crypto.ts'
+import { deriveKey, encrypt, decrypt, PBKDF2_ITERATIONS, SALT_LENGTH } from '../utils/crypto.ts'
 import * as historyDb from '../utils/historyDb.ts'
+
+// Encrypted with an identity's key and stored alongside it, so a password can be checked
+// against the identity itself instead of by trying to decrypt every record it owns.
+export const VERIFIER_PLAINTEXT = 'shortlink-history-identity'
 
 export interface HistoryEntry {
   short_code: string
@@ -17,6 +21,8 @@ export interface HistoryDbDeps {
   putRecord: typeof historyDb.putRecord
   getAllRecords: typeof historyDb.getAllRecords
   deleteRecord: typeof historyDb.deleteRecord
+  putIdentity: typeof historyDb.putIdentity
+  getAllIdentities: typeof historyDb.getAllIdentities
 }
 
 export interface HistoryDeps extends HistoryDbDeps {
@@ -29,6 +35,11 @@ export function createHistoryStore(deps: HistoryDeps = { ...historyDb, fetch: gl
   const sessionList = ref<HistoryEntry[]>([])
   const savedList = ref<SavedEntry[]>([])
   const currentIdentity = ref<string | null>(null)
+  // The unlocked identity and its derived key. Memory-only like the password itself, and
+  // not reactive because nothing renders them — they exist so that saving another link
+  // reuses the key instead of paying for PBKDF2 again.
+  let currentIdentityId: string | null = null
+  let currentKey: CryptoKey | null = null
 
   const badgeCount = computed(() =>
     currentIdentity.value === null
@@ -88,6 +99,57 @@ export function createHistoryStore(deps: HistoryDeps = { ...historyDb, fetch: gl
     sessionList.value = sessionList.value.filter((e) => e.short_code !== entry.short_code)
   }
 
+  interface UnlockedIdentity {
+    id: string
+    key: CryptoKey
+  }
+
+  /**
+   * Finds the identity `password` unlocks, or null if it unlocks none (wrong password).
+   * Costs one PBKDF2 derivation per stored identity — normally one or two, as opposed to
+   * one per saved record, which is what trying to decrypt every record would cost.
+   */
+  async function findIdentity(password: string): Promise<UnlockedIdentity | null> {
+    if (password === currentIdentity.value && currentIdentityId && currentKey) {
+      return { id: currentIdentityId, key: currentKey }
+    }
+    for (const identity of await deps.getAllIdentities()) {
+      const key = await deriveKey(password, identity.salt, identity.iterations)
+      const verified = await decrypt<string>(identity.verifier.iv, identity.verifier.ciphertext, key)
+      if (verified === VERIFIER_PLAINTEXT) {
+        return { id: identity.id, key }
+      }
+    }
+    return null
+  }
+
+  /** Resolves `password` to its identity, creating one the first time that password is used. */
+  async function unlockIdentity(password: string): Promise<UnlockedIdentity> {
+    const existing = await findIdentity(password)
+    if (existing) {
+      return existing
+    }
+    const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH))
+    const key = await deriveKey(password, salt, PBKDF2_ITERATIONS)
+    // Stored per identity rather than read from the constant at decryption time, so that
+    // raising PBKDF2_ITERATIONS later leaves existing identities derivable.
+    const verifier = await encrypt(VERIFIER_PLAINTEXT, key)
+    const id = crypto.randomUUID()
+    await deps.putIdentity({ id, salt, iterations: PBKDF2_ITERATIONS, verifier })
+    return { id, key }
+  }
+
+  function setCurrentIdentity(password: string, identity: UnlockedIdentity): void {
+    // savedList only ever reflects currentIdentity's data — switching identity
+    // means whatever was in it belongs to the old password and must be dropped.
+    if (password !== currentIdentity.value) {
+      savedList.value = []
+    }
+    currentIdentity.value = password
+    currentIdentityId = identity.id
+    currentKey = identity.key
+  }
+
   /**
    * Encrypts `entry` and writes it to IndexedDB.
    * - Pass `password` to establish/switch identity (fresh save or "save as").
@@ -105,18 +167,18 @@ export function createHistoryStore(deps: HistoryDeps = { ...historyDb, fetch: gl
       throw new Error('saveToLocal requires a password when there is no current identity')
     }
 
-    const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH))
-    const key = await deriveKey(password, salt)
-    const { iv, ciphertext } = await encrypt(entry, key)
+    const identity = await unlockIdentity(password)
+    const { iv, ciphertext } = await encrypt(entry, identity.key)
     const recordId = crypto.randomUUID()
-    await deps.putRecord({ id: recordId, salt, iv, ciphertext })
+    await deps.putRecord({
+      id: recordId,
+      version: historyDb.RECORD_VERSION,
+      identityId: identity.id,
+      iv,
+      ciphertext,
+    })
 
-    // savedList only ever reflects currentIdentity's data — switching identity
-    // means whatever was in it belongs to the old password and must be dropped.
-    if (password !== currentIdentity.value) {
-      savedList.value = []
-    }
-    currentIdentity.value = password
+    setCurrentIdentity(password, identity)
     sessionList.value = sessionList.value.filter((e) => e.short_code !== entry.short_code)
     if (options.previousRecordId) {
       savedList.value = savedList.value.filter((e) => e.recordId !== options.previousRecordId)
@@ -130,21 +192,27 @@ export function createHistoryStore(deps: HistoryDeps = { ...historyDb, fetch: gl
     await deps.deleteRecord(recordId)
   }
 
-  /** Tries `password` against every encrypted record; returns whether any decrypted successfully. */
+  /**
+   * Unlocks the identity `password` belongs to and loads its records.
+   * Returns false only when no identity matches, i.e. the password is wrong. An identity
+   * holding no records still returns true: the password was right and the drawer should
+   * say the identity is empty, not that the password matched nothing.
+   */
   async function loadFromLocal(password: string): Promise<boolean> {
+    const identity = await findIdentity(password)
+    if (!identity) {
+      return false
+    }
     const records = await deps.getAllRecords()
     const decrypted: SavedEntry[] = []
     for (const record of records) {
-      const key = await deriveKey(password, record.salt)
-      const entry = await decrypt<HistoryEntry>(record.iv, record.ciphertext, key)
+      if (record.identityId !== identity.id) continue
+      const entry = await decrypt<HistoryEntry>(record.iv, record.ciphertext, identity.key)
       if (entry) {
         decrypted.push({ ...entry, recordId: record.id })
       }
     }
-    if (decrypted.length === 0) {
-      return false
-    }
-    currentIdentity.value = password
+    setCurrentIdentity(password, identity)
     savedList.value = decrypted
     return true
   }

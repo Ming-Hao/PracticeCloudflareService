@@ -1,4 +1,7 @@
-const PBKDF2_ITERATIONS = 100_000
+// Iteration count for keys derived from now on. Existing identities store the count
+// they were created with and pass it back in — raising this constant must never make
+// already-stored records underivable, which would look exactly like a wrong password.
+export const PBKDF2_ITERATIONS = 100_000
 export const SALT_LENGTH = 16
 export const IV_LENGTH = 12
 
@@ -7,7 +10,11 @@ export interface EncryptedPayload {
   ciphertext: ArrayBuffer
 }
 
-export async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
+export async function deriveKey(
+  password: string,
+  salt: Uint8Array,
+  iterations: number = PBKDF2_ITERATIONS,
+): Promise<CryptoKey> {
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(password),
@@ -16,7 +23,7 @@ export async function deriveKey(password: string, salt: Uint8Array): Promise<Cry
     ['deriveKey'],
   )
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: salt as BufferSource, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt: salt as BufferSource, iterations, hash: 'SHA-256' },
     keyMaterial,
     { name: 'AES-GCM', length: 256 },
     false,

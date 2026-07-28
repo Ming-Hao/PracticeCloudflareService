@@ -1,13 +1,21 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { createHistoryStore, type HistoryDbDeps, type HistoryDeps, type HistoryEntry } from '../useHistory.ts'
-import { deriveKey, encrypt, SALT_LENGTH } from '../../utils/crypto.ts'
-import type { EncryptedRecord } from '../../utils/historyDb.ts'
+import {
+  createHistoryStore,
+  VERIFIER_PLAINTEXT,
+  type HistoryDbDeps,
+  type HistoryDeps,
+  type HistoryEntry,
+} from '../useHistory.ts'
+import { decrypt, deriveKey, encrypt, PBKDF2_ITERATIONS, SALT_LENGTH } from '../../utils/crypto.ts'
+import { RECORD_VERSION, type EncryptedRecord, type IdentityRecord } from '../../utils/historyDb.ts'
 
-function createFakeDb(): { deps: HistoryDbDeps; records: EncryptedRecord[] } {
+function createFakeDb(): { deps: HistoryDbDeps; records: EncryptedRecord[]; identities: IdentityRecord[] } {
   const records: EncryptedRecord[] = []
+  const identities: IdentityRecord[] = []
   return {
     records,
+    identities,
     deps: {
       async putRecord(record) {
         records.push(record)
@@ -18,6 +26,12 @@ function createFakeDb(): { deps: HistoryDbDeps; records: EncryptedRecord[] } {
       async deleteRecord(id) {
         const index = records.findIndex((r) => r.id === id)
         if (index !== -1) records.splice(index, 1)
+      },
+      async putIdentity(identity) {
+        identities.push(identity)
+      },
+      async getAllIdentities() {
+        return [...identities]
       },
     },
   }
@@ -44,12 +58,35 @@ function makeEntry(short_code: string): HistoryEntry {
   }
 }
 
-/** Builds an encrypted record the way saveToLocal would, for seeding loadFromLocal tests. */
-async function encryptEntryForTest(entry: HistoryEntry, password: string): Promise<EncryptedRecord> {
+interface SeededIdentity {
+  id: string
+  key: CryptoKey
+}
+
+/** Mirrors unlockIdentity: finds the identity `password` unlocks, creating it if absent. */
+async function identityFor(identities: IdentityRecord[], password: string): Promise<SeededIdentity> {
+  for (const identity of identities) {
+    const key = await deriveKey(password, identity.salt, identity.iterations)
+    if ((await decrypt(identity.verifier.iv, identity.verifier.ciphertext, key)) === VERIFIER_PLAINTEXT) {
+      return { id: identity.id, key }
+    }
+  }
+  const id = crypto.randomUUID()
   const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH))
-  const key = await deriveKey(password, salt)
-  const { iv, ciphertext } = await encrypt(entry, key)
-  return { id: crypto.randomUUID(), salt, iv, ciphertext }
+  const key = await deriveKey(password, salt, PBKDF2_ITERATIONS)
+  identities.push({ id, salt, iterations: PBKDF2_ITERATIONS, verifier: await encrypt(VERIFIER_PLAINTEXT, key) })
+  return { id, key }
+}
+
+/** Builds an encrypted record the way saveToLocal would, for seeding loadFromLocal tests. */
+async function encryptEntryForTest(
+  entry: HistoryEntry,
+  password: string,
+  identities: IdentityRecord[],
+): Promise<EncryptedRecord> {
+  const identity = await identityFor(identities, password)
+  const { iv, ciphertext } = await encrypt(entry, identity.key)
+  return { id: crypto.randomUUID(), version: RECORD_VERSION, identityId: identity.id, iv, ciphertext }
 }
 
 function shortCodesOf(entries: { short_code: string }[]): string[] {
@@ -57,10 +94,10 @@ function shortCodesOf(entries: { short_code: string }[]): string[] {
 }
 
 function createStore(statusQueue: number[] = []) {
-  const { deps: dbDeps, records } = createFakeDb()
+  const { deps: dbDeps, records, identities } = createFakeDb()
   const fakeFetch = createFakeFetch(statusQueue)
   const deps: HistoryDeps = { ...dbDeps, fetch: fakeFetch.fetch }
-  return { store: createHistoryStore(deps), records, fakeFetch }
+  return { store: createHistoryStore(deps), records, identities, fakeFetch }
 }
 
 // --- saveToLocal ---
@@ -103,6 +140,33 @@ test('saveToLocal: saving with a different password drops the previous identity 
   assert.deepEqual(shortCodesOf(store.savedList.value), ['BBBBBB'])
 })
 
+test('saveToLocal: reusing a password reuses its identity instead of creating a second one', async () => {
+  const { store, identities } = createStore()
+  await store.saveToLocal(makeEntry('AAAAAA'), { password: 'pw1' })
+  await store.saveToLocal(makeEntry('BBBBBB'), { password: 'pw2' })
+
+  await store.saveToLocal(makeEntry('CCCCCC'), { password: 'pw1' })
+
+  assert.equal(identities.length, 2)
+})
+
+test('saveToLocal: records are tagged with the identity of the password they were saved under', async () => {
+  const { store, records, identities } = createStore()
+  await store.saveToLocal(makeEntry('AAAAAA'), { password: 'pw1' })
+  await store.saveToLocal(makeEntry('BBBBBB'), { password: 'pw2' })
+
+  const identityIds = records.map((r) => r.identityId)
+  assert.deepEqual(identityIds, identities.map((i) => i.id))
+})
+
+test('saveToLocal: records are stamped with the current record version', async () => {
+  const { store, records } = createStore()
+
+  await store.saveToLocal(makeEntry('AAAAAA'), { password: 'pw1' })
+
+  assert.equal(records[0]?.version, RECORD_VERSION)
+})
+
 test('saveToLocal: no password and no currentIdentity throws', async () => {
   const { store } = createStore()
 
@@ -133,10 +197,10 @@ test('saveToLocal: the previousRecordId IndexedDB record is not auto-deleted', a
 
 // --- loadFromLocal ---
 
-test('loadFromLocal: only returns records that decrypt with the given password', async () => {
-  const { store, records } = createStore()
-  records.push(await encryptEntryForTest(makeEntry('AAAAAA'), 'pw1'))
-  records.push(await encryptEntryForTest(makeEntry('CCCCCC'), 'pw2'))
+test('loadFromLocal: only returns records belonging to the identity the password unlocks', async () => {
+  const { store, records, identities } = createStore()
+  records.push(await encryptEntryForTest(makeEntry('AAAAAA'), 'pw1', identities))
+  records.push(await encryptEntryForTest(makeEntry('CCCCCC'), 'pw2', identities))
 
   const success = await store.loadFromLocal('pw1')
 
@@ -145,9 +209,9 @@ test('loadFromLocal: only returns records that decrypt with the given password',
   assert.deepEqual(shortCodesOf(store.savedList.value), ['AAAAAA'])
 })
 
-test('loadFromLocal: a password matching nothing returns false and leaves state untouched', async () => {
-  const { store, records } = createStore()
-  records.push(await encryptEntryForTest(makeEntry('AAAAAA'), 'pw1'))
+test('loadFromLocal: a password matching no identity returns false and leaves state untouched', async () => {
+  const { store, records, identities } = createStore()
+  records.push(await encryptEntryForTest(makeEntry('AAAAAA'), 'pw1', identities))
 
   const success = await store.loadFromLocal('wrong-password')
 
@@ -156,17 +220,43 @@ test('loadFromLocal: a password matching nothing returns false and leaves state 
   assert.equal(store.savedList.value.length, 0)
 })
 
+// An identity with no records is not a wrong password: it happens after clearAll, which
+// deletes the records but keeps the identity. Returning false would tell the user their
+// password matched nothing, when the truthful answer is that the identity is empty.
+test('loadFromLocal: an identity holding no records still unlocks, with an empty savedList', async () => {
+  const { store, identities } = createStore()
+  await identityFor(identities, 'pw1')
+
+  const success = await store.loadFromLocal('pw1')
+
+  assert.equal(success, true)
+  assert.equal(store.currentIdentity.value, 'pw1')
+  assert.equal(store.savedList.value.length, 0)
+})
+
 test('loadFromLocal: reloading the current identity replaces savedList with the DB state, not a merge', async () => {
-  const { store, records } = createStore()
+  const { store, records, identities } = createStore()
   await store.saveToLocal(makeEntry('AAAAAA'), { password: 'pw1' })
 
   // A record saved under the same password elsewhere (e.g. a previous session)
   // that this store's in-memory savedList doesn't know about yet.
-  records.push(await encryptEntryForTest(makeEntry('BBBBBB'), 'pw1'))
+  records.push(await encryptEntryForTest(makeEntry('BBBBBB'), 'pw1', identities))
 
   await store.loadFromLocal('pw1')
 
   assert.deepEqual(shortCodesOf(store.savedList.value), ['AAAAAA', 'BBBBBB'])
+})
+
+test('loadFromLocal: switching to another identity replaces savedList rather than merging', async () => {
+  const { store, records, identities } = createStore()
+  records.push(await encryptEntryForTest(makeEntry('AAAAAA'), 'pw1', identities))
+  records.push(await encryptEntryForTest(makeEntry('CCCCCC'), 'pw2', identities))
+  await store.loadFromLocal('pw1')
+
+  await store.loadFromLocal('pw2')
+
+  assert.equal(store.currentIdentity.value, 'pw2')
+  assert.deepEqual(shortCodesOf(store.savedList.value), ['CCCCCC'])
 })
 
 // --- badgeCount ---
