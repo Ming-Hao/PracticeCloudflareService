@@ -20,6 +20,8 @@ test('GET /:code — existing short code redirects with 302 to target_url', asyn
 
     const ctx = createContext({ db, params: { code: 'AAAAAA' } })
     const res = await onRequestGet(ctx)
+    // The click counter runs via waitUntil; let it finish before withTestDb disposes the DB
+    await ctx._settle()
 
     assert.equal(res.status, 302)
     assert.equal(res.headers.get('Location'), 'https://example.com/page')
@@ -144,19 +146,13 @@ test('DELETE /:code — missing delete_token field returns 403 (undefined matche
   })
 })
 
-// --- Deferred tests: [DEFERRED] marks behaviour we have decided NOT to implement in
-// this round (P1-6 and P2-9 were both reclassified as hardening, not bugs). They are
-// marked `{ todo: true }` so node:test still runs them and reports them under "# todo"
-// without failing the suite — a green `npm test` therefore means "nothing unexpected",
-// while the todo count is the backlog for the next round.
-// When one of these starts passing, drop the marker instead of leaving it stale. ---
-
-test('[DEFERRED, P1-6] GET /:code — a successful redirect includes Cache-Control: no-store', { todo: true }, async () => {
+test('GET /:code — a successful redirect includes Cache-Control: no-store', async () => {
   await withTestDb(async (db) => {
     await insertLink(db, { short_code: 'AAAAAA' })
 
     const ctx = createContext({ db, params: { code: 'AAAAAA' } })
     const res = await onRequestGet(ctx)
+    await ctx._settle()
 
     assert.equal(res.headers.get('Cache-Control'), 'no-store')
   })
@@ -165,7 +161,7 @@ test('[DEFERRED, P1-6] GET /:code — a successful redirect includes Cache-Contr
 // Covers all three plain-text responses in [code].js, not just DELETE 404: fixing one
 // of them would otherwise turn this test green while the other two stayed plain text.
 // The 403 branch is the one code review flagged as the future `await res.json()` trap.
-test('[DEFERRED, P2-9] DELETE /:code — error responses are JSON, not plain text', { todo: true }, async () => {
+test('DELETE /:code — error responses are JSON, not plain text', async () => {
   await withTestDb(async (db) => {
     await insertLink(db, { short_code: 'AAAAAA', delete_token: 'correct-token' })
 
