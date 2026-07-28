@@ -9,6 +9,9 @@ const shortUrl = ref('')
 const error = ref('')
 const loading = ref(false)
 const copied = ref(false)
+// Separate from `error`: that one renders behind the result dialog, where it would be
+// invisible for a copy triggered from inside the dialog.
+const copyError = ref('')
 const dialogRef = ref<HTMLDialogElement | null>(null)
 const historyOpen = ref(false)
 
@@ -49,7 +52,16 @@ async function onSubmit() {
 }
 
 async function copyShortUrl() {
-  await navigator.clipboard.writeText(shortUrl.value)
+  copyError.value = ''
+  try {
+    // Rejects when the clipboard permission is denied or the page is not a secure
+    // context. Unhandled, the button just does nothing and the rejection escapes —
+    // Vue does not await click handlers.
+    await navigator.clipboard.writeText(shortUrl.value)
+  } catch {
+    copyError.value = 'Could not copy — please select the link and copy it manually.'
+    return
+  }
   copied.value = true
   setTimeout(() => (copied.value = false), 1500)
 }
@@ -118,6 +130,8 @@ async function copyShortUrl() {
       </button>
     </div>
 
+    <p v-if="copyError" class="error">{{ copyError }}</p>
+
     <dialog ref="dialogRef" class="result-dialog" @keydown.esc="dialogRef?.close()">
       <div class="dialog-header">
         <p class="dialog-title">
@@ -175,6 +189,7 @@ async function copyShortUrl() {
           {{ copied ? 'Copied!' : 'Copy' }}
         </button>
       </div>
+      <p v-if="copyError" class="error">{{ copyError }}</p>
     </dialog>
   </main>
 </template>

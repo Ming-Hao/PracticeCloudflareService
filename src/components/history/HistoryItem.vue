@@ -124,7 +124,16 @@ function onConfirmStale() {
 }
 
 async function copyShortUrl() {
-  await navigator.clipboard.writeText(shortUrl.value)
+  errorMessage.value = ''
+  try {
+    // Rejects when the clipboard permission is denied or the page is not a secure
+    // context. Unhandled, the button just does nothing and the rejection escapes —
+    // Vue does not await click handlers.
+    await navigator.clipboard.writeText(shortUrl.value)
+  } catch {
+    errorMessage.value = 'Could not copy — please select the link and copy it manually.'
+    return
+  }
   copied.value = true
   setTimeout(() => (copied.value = false), 1500)
 }
