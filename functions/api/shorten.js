@@ -1,12 +1,25 @@
 // Matches the de facto browser address bar limit, so a shortened link stays usable everywhere
 const MAX_URL_LENGTH = 2048;
 
-// Generates a random short code
-export function generateCode(length = 6) {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const CODE_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+// Random bytes run 0-255 but the alphabet has 62 characters, and 256 is not a
+// multiple of 62 (256 = 4*62 + 8). Taking `byte % 62` directly would map those 8
+// leftover values onto the first 8 letters, so a-h would come out roughly 21%
+// more often than every other character. Discarding the leftover values is all
+// the loop below does — the goal is simply that no character is favoured.
+const REJECTION_LIMIT = 256 - (256 % CODE_ALPHABET.length);
+
+// Generates a random short code. A short code is the only thing guarding a link
+// (GET /:code performs no other check), so the randomness has to be
+// cryptographic — Math.random()'s xorshift128+ state is recoverable from its output.
+export function generateCode(length = 8) {
   let code = "";
-  for (let i = 0; i < length; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
+  while (code.length < length) {
+    for (const byte of crypto.getRandomValues(new Uint8Array(length - code.length))) {
+      if (byte >= REJECTION_LIMIT) continue;
+      code += CODE_ALPHABET[byte % CODE_ALPHABET.length];
+    }
   }
   return code;
 }
@@ -48,25 +61,6 @@ export async function onRequestPost(context, { codeGenerator = generateCode } = 
       return Response.json({ error: "Cannot shorten a link pointing at this service" }, { status: 400 });
     }
 
-    // Generate a unique short code
-    let code = null;
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const candidate = codeGenerator();
-      const existing = await env.DB.prepare(
-        "SELECT short_code FROM links WHERE short_code = ?"
-      ).bind(candidate).first();
-      if (!existing) {
-        code = candidate; // no collision, use this one
-        break;
-      }
-    }
-    // Every attempt collided. Falling through here would insert the last known-colliding
-    // candidate anyway, hit the UNIQUE constraint, and report it as a 500 — a server fault
-    // the client can do nothing about. 503 says "temporarily unavailable, retry" instead.
-    if (code === null) {
-      return Response.json({ error: "Could not allocate a short code, please try again" }, { status: 503 });
-    }
-
     // Generate the delete token, only ever returned in this response
     const deleteToken = crypto.randomUUID();
     // created_at must be ISO 8601 with an explicit Z — the frontend parses it with
@@ -75,10 +69,32 @@ export async function onRequestPost(context, { codeGenerator = generateCode } = 
     // Also: never accept a client-supplied timestamp (clock skew, tampering).
     const createdAt = new Date().toISOString();
 
-    // Save to the database
-    await env.DB.prepare(
-      "INSERT INTO links (short_code, target_url, delete_token, created_at) VALUES (?, ?, ?, ?)"
-    ).bind(code, url, deleteToken, createdAt).run();
+    // Claim a short code by inserting it and letting the UNIQUE constraint report
+    // collisions. Checking with a SELECT first would be two round-trips and still
+    // racy: another request can insert the same code between the check and the insert.
+    let code = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const candidate = codeGenerator();
+      try {
+        await env.DB.prepare(
+          "INSERT INTO links (short_code, target_url, delete_token, created_at) VALUES (?, ?, ?, ?)"
+        ).bind(candidate, url, deleteToken, createdAt).run();
+        code = candidate;
+        break;
+      } catch (err) {
+        // Only a collision is worth retrying; any other DB fault must surface as a 500.
+        // String(...) because a thrown non-Error has no .message, and .test(undefined)
+        // would silently match against the literal string "undefined".
+        if (!/UNIQUE constraint failed/i.test(String(err?.message ?? ""))) {
+          throw err;
+        }
+      }
+    }
+    // Every attempt collided. 503 says "temporarily unavailable, retry" — unlike a 500,
+    // it tells the client this is not a fault it should give up on.
+    if (code === null) {
+      return Response.json({ error: "Could not allocate a short code, please try again" }, { status: 503 });
+    }
 
     return Response.json({ short_code: code, target_url: url, delete_token: deleteToken, created_at: createdAt });
   } catch (err) {

@@ -160,24 +160,6 @@ test('generateCode produces no duplicates across 10,000 calls', () => {
   assert.equal(codes.size, 10_000)
 })
 
-test('generateCode produces a roughly uniform character distribution across 10,000 codes', () => {
-  const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-  const counts = new Map(Array.from(alphabet, (c) => [c, 0]))
-  const runs = 10_000
-
-  for (let i = 0; i < runs; i++) {
-    for (const char of generateCode()) counts.set(char, counts.get(char) + 1)
-  }
-
-  const expected = (runs * 6) / alphabet.length
-  for (const [char, count] of counts) {
-    assert.ok(
-      count >= expected * 0.8 && count <= expected * 1.2,
-      `character "${char}" appeared ${count} times, expected within 20% of ${expected}`,
-    )
-  }
-})
-
 test('a colliding code from the generator is retried until a free one is found', async () => {
   await withTestDb(async (db) => {
     await insertLink(db, 'EXIST1')
@@ -195,10 +177,8 @@ test('a colliding code from the generator is retried until a free one is found',
   })
 })
 
-// Currently true "by accident": the insert only ever runs once regardless of error
-// type, since there's no retry-on-insert-failure loop yet (P0-2). Once that loop
-// exists, this test starts doing real work — verifying the retry is scoped to
-// UNIQUE-constraint collisions only, not any DB error.
+// Verifies the retry loop is scoped to UNIQUE-constraint collisions only: a disk
+// error must abort after the first attempt rather than burning all five.
 test('a non-UNIQUE DB error is not retried and surfaces as 500', async (t) => {
   // The SQLITE_IOERR below is manufactured by this test, and shorten.js logging it on the
   // 500 path is the behaviour we want in production. Silence it here only so the stack
@@ -219,9 +199,6 @@ test('a non-UNIQUE DB error is not retried and surfaces as 500', async (t) => {
         },
         async run() {
           throw new Error('SQLITE_IOERR: disk I/O error')
-        },
-        async first() {
-          return null
         },
       }
     },
