@@ -69,7 +69,10 @@ export async function onRequestPost(context, { codeGenerator = generateCode } = 
 
     // Generate the delete token, only ever returned in this response
     const deleteToken = crypto.randomUUID();
-    // Explicitly generate the timestamp and store it, so the response matches the database record (server is the source of truth)
+    // created_at must be ISO 8601 with an explicit Z — the frontend parses it with
+    // new Date(). SQLite's CURRENT_TIMESTAMP format ("YYYY-MM-DD HH:MM:SS") has no
+    // timezone marker and browsers parse it as *local* time.
+    // Also: never accept a client-supplied timestamp (clock skew, tampering).
     const createdAt = new Date().toISOString();
 
     // Save to the database
