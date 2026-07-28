@@ -67,12 +67,24 @@ export function createHistoryStore(deps: HistoryDeps = { ...historyDb, fetch: gl
     sessionList.value.push(entry)
   }
 
-  async function deleteSessionItem(entry: HistoryEntry): Promise<void> {
+  /**
+   * Deletes `entry` server-side, plus its IndexedDB record if it is a saved entry.
+   * Deliberately does not touch `sessionList` / `savedList`: `clearAll` runs many of
+   * these concurrently and updates the lists once at the end (see there for why).
+   */
+  async function purgeEntry(entry: HistoryEntry | SavedEntry): Promise<void> {
     try {
       await deleteLinkOnServer(entry.short_code, entry.delete_token)
     } catch (err) {
       if (!isAlreadyGone(err)) throw err
     }
+    if ('recordId' in entry) {
+      await deps.deleteRecord(entry.recordId)
+    }
+  }
+
+  async function deleteSessionItem(entry: HistoryEntry): Promise<void> {
+    await purgeEntry(entry)
     sessionList.value = sessionList.value.filter((e) => e.short_code !== entry.short_code)
   }
 
@@ -138,12 +150,7 @@ export function createHistoryStore(deps: HistoryDeps = { ...historyDb, fetch: gl
   }
 
   async function deleteSavedItem(entry: SavedEntry): Promise<void> {
-    try {
-      await deleteLinkOnServer(entry.short_code, entry.delete_token)
-    } catch (err) {
-      if (!isAlreadyGone(err)) throw err
-    }
-    await deps.deleteRecord(entry.recordId)
+    await purgeEntry(entry)
     savedList.value = savedList.value.filter((e) => e.recordId !== entry.recordId)
   }
 
@@ -157,9 +164,35 @@ export function createHistoryStore(deps: HistoryDeps = { ...historyDb, fetch: gl
     }
   }
 
-  async function clearAll(): Promise<void> {
-    await Promise.all(savedList.value.map((entry) => deleteSavedItem(entry)))
-    await Promise.all(sessionList.value.map((entry) => deleteSessionItem(entry)))
+  /** Runs `purgeEntry` over `entries`, keeping the ones that succeeded instead of failing fast. */
+  async function purgeAll<T extends HistoryEntry | SavedEntry>(
+    entries: T[],
+  ): Promise<{ succeeded: T[]; failed: number }> {
+    const results = await Promise.allSettled(entries.map((entry) => purgeEntry(entry)))
+    const succeeded = entries.filter((_, i) => results[i]?.status === 'fulfilled')
+    return { succeeded, failed: results.length - succeeded.length }
+  }
+
+  /**
+   * Deletes everything in both lists, reporting how many could not be deleted.
+   * A single failure (typically a 403 from a link whose token no longer matches) must
+   * not hide the deletions that did succeed — Promise.all would reject on the first one
+   * and leave the caller reporting total failure while most links were already gone.
+   *
+   * Each list is filtered exactly once, at the end. Letting every concurrent delete
+   * filter the list itself is a read-modify-write race: two deletes reading the same
+   * snapshot would have the later write resurrect the entry the earlier one removed.
+   */
+  async function clearAll(): Promise<{ failed: number }> {
+    const saved = await purgeAll([...savedList.value])
+    const session = await purgeAll([...sessionList.value])
+
+    const purgedRecordIds = new Set(saved.succeeded.map((e) => e.recordId))
+    const purgedShortCodes = new Set(session.succeeded.map((e) => e.short_code))
+    savedList.value = savedList.value.filter((e) => !purgedRecordIds.has(e.recordId))
+    sessionList.value = sessionList.value.filter((e) => !purgedShortCodes.has(e.short_code))
+
+    return { failed: saved.failed + session.failed }
   }
 
   return {

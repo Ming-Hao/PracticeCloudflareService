@@ -14,6 +14,7 @@ const showLoadDialog = ref(false)
 const showLoadChoice = ref(false)
 const showClearConfirm = ref(false)
 const loadError = ref('')
+const clearError = ref('')
 
 function onUnlockClick() {
   loadError.value = ''
@@ -47,7 +48,13 @@ function onClearAllClick() {
 
 async function onConfirmClearAll() {
   showClearConfirm.value = false
-  await clearAll()
+  clearError.value = ''
+  // Entries that failed to delete stay in the lists, so name the count rather than
+  // reporting a blanket failure — the rest really are gone.
+  const { failed } = await clearAll()
+  if (failed > 0) {
+    clearError.value = `${failed} link${failed === 1 ? '' : 's'} could not be deleted and ${failed === 1 ? 'is' : 'are'} still listed.`
+  }
 }
 </script>
 
@@ -117,6 +124,8 @@ async function onConfirmClearAll() {
     </div>
 
     <div class="history-body">
+      <p v-if="clearError" class="history-item-error">{{ clearError }}</p>
+
       <section class="history-section history-section--session">
         <h2>This session <span class="history-badge">{{ sessionList.length }}</span></h2>
         <ul v-if="sessionList.length" class="history-list">
