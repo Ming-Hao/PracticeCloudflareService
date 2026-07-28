@@ -261,11 +261,9 @@ test('removeStaleLocalOnly: given a HistoryEntry, only touches sessionList and n
   assert.equal(fakeFetch.state.callCount, 0)
 })
 
-// --- Red test: fails against the current implementation and is expected to stay
-// red until the corresponding code-review fix (P2-7) lands. Do not "fix" this test
-// to make it pass — fix clearAll instead. ---
+// --- clearAll ---
 
-test('[RED, P2-7] clearAll: one entry failing with 403 still deletes the rest and reports a failure count', async () => {
+test('clearAll: one entry failing with 403 still deletes the rest and reports a failure count', async () => {
   const { store } = createStore([200, 403, 200])
   await store.saveToLocal(makeEntry('AAAAAA'), { password: 'pw1' })
   await store.saveToLocal(makeEntry('BBBBBB'))

@@ -252,11 +252,7 @@ test('[DEFERRED, P0-4] a url pointing at this service\'s own domain returns 400'
   })
 })
 
-// --- Red tests: these fail against the current implementation and are expected to
-// stay red until the corresponding code-review fix lands. Do not "fix" these tests
-// to make them pass — fix the handler instead. ---
-
-test('[RED, P0-2] exhausting all collision retries returns 503 and inserts no row', async () => {
+test('exhausting all collision retries returns 503 and inserts no row', async () => {
   await withTestDb(async (db) => {
     await insertLink(db, 'EXIST1')
     const before = await countRows(db)
