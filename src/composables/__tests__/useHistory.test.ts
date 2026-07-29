@@ -1,41 +1,11 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import {
-  createHistoryStore,
-  VERIFIER_PLAINTEXT,
-  type HistoryDbDeps,
-  type HistoryDeps,
-  type HistoryEntry,
-} from '../useHistory.ts'
+import { createHistoryStore, VERIFIER_PLAINTEXT, type HistoryDeps, type HistoryEntry } from '../useHistory.ts'
 import { decrypt, deriveKey, encrypt, PBKDF2_ITERATIONS, SALT_LENGTH } from '../../utils/crypto.ts'
 import { RECORD_VERSION, type EncryptedRecord, type IdentityRecord } from '../../utils/historyDb.ts'
-
-function createFakeDb(): { deps: HistoryDbDeps; records: EncryptedRecord[]; identities: IdentityRecord[] } {
-  const records: EncryptedRecord[] = []
-  const identities: IdentityRecord[] = []
-  return {
-    records,
-    identities,
-    deps: {
-      async putRecord(record) {
-        records.push(record)
-      },
-      async getAllRecords() {
-        return [...records]
-      },
-      async deleteRecord(id) {
-        const index = records.findIndex((r) => r.id === id)
-        if (index !== -1) records.splice(index, 1)
-      },
-      async putIdentity(identity) {
-        identities.push(identity)
-      },
-      async getAllIdentities() {
-        return [...identities]
-      },
-    },
-  }
-}
+// Shared with historyDb.contract.test.ts, which runs the same assertions against this fake
+// and the real historyDb — that is what keeps the tests below describing real behaviour.
+import { createFakeDb } from '../../utils/__tests__/fakeHistoryDb.ts'
 
 /** Fake fetch that returns queued status codes in call order. */
 function createFakeFetch(statusQueue: number[]): { fetch: typeof globalThis.fetch; state: { callCount: number } } {
@@ -352,6 +322,37 @@ test('removeStaleLocalOnly: given a HistoryEntry, only touches sessionList and n
 })
 
 // --- clearAll ---
+
+// The everything-succeeds path, which is what actually happens almost every time. The
+// partial-failure test below cannot stand in for it: clearAll collects the succeeded
+// entries into two Sets and filters each list once at the end, and with a failure present
+// that filtering is never seen doing the whole job. sessionList in particular is empty in
+// every other clearAll test, so `purgedShortCodes` has only ever been an empty Set applied
+// to an empty array — executed, and counted as covered, without being exercised.
+test('clearAll: with both lists populated and every delete succeeding, both lists end up empty', async () => {
+  const { store } = createStore([200, 200, 200, 200])
+  await store.saveToLocal(makeEntry('AAAAAA'), { password: 'pw1' })
+  await store.saveToLocal(makeEntry('BBBBBB'))
+  store.addToSessionList(makeEntry('CCCCCC'))
+  store.addToSessionList(makeEntry('DDDDDD'))
+
+  const result = await store.clearAll()
+
+  assert.equal(result.failed, 0)
+  assert.deepEqual(store.savedList.value, [])
+  assert.deepEqual(store.sessionList.value, [])
+})
+
+test('clearAll: the IndexedDB records behind savedList are deleted too', async () => {
+  const { store, records } = createStore([200, 200])
+  await store.saveToLocal(makeEntry('AAAAAA'), { password: 'pw1' })
+  await store.saveToLocal(makeEntry('BBBBBB'))
+  assert.equal(records.length, 2, 'precondition: both saves reached the database')
+
+  await store.clearAll()
+
+  assert.deepEqual(records, [])
+})
 
 test('clearAll: one entry failing with 403 still deletes the rest and reports a failure count', async () => {
   const { store } = createStore([200, 403, 200])
