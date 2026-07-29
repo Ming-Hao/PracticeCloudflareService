@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-07-29
+
+### Added
+
+- Tests for the local history store: the version 1 to 2 upgrade that deletes
+  saved records, the encrypt-store-load-decrypt round trip, and a contract that
+  both the real store and its test double must satisfy.
+- Tests for the copy button reporting a failure when the clipboard is
+  unavailable.
+
+### Changed
+
+- The copy button's clipboard logic moved into a composable so it could be
+  tested. The button itself behaves the same.
+
 ## [1.3.0] - 2026-07-28
 
 ### Changed
@@ -116,7 +131,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Public domain LICENSE file.
 - `.gitignore` excludes the `.agent_plans` directory.
 
-[Unreleased]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.1.0...v1.1.1
