@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { watch } from 'vue'
+import { useClipboard } from '@/composables/useClipboard'
 
 defineProps<{ text: string }>()
 // The failure message is emitted rather than rendered here: the two call sites in
@@ -7,26 +8,14 @@ defineProps<{ text: string }>()
 // result dialog, where the outer position would be hidden behind the backdrop).
 const emit = defineEmits<{ error: [message: string] }>()
 
-const copied = ref(false)
-
-async function onClick(text: string) {
-  emit('error', '')
-  try {
-    // Rejects when the clipboard permission is denied or the page is not a secure
-    // context. Unhandled, the button just does nothing and the rejection escapes —
-    // Vue does not await click handlers.
-    await navigator.clipboard.writeText(text)
-  } catch {
-    emit('error', 'Could not copy — please select the link and copy it manually.')
-    return
-  }
-  copied.value = true
-  setTimeout(() => (copied.value = false), 1500)
-}
+const { copied, error, copy } = useClipboard()
+// Watched rather than emitted from a click handler so the clearing of a previous message
+// still happens the moment the button is pressed, not after the clipboard write resolves.
+watch(error, (message) => emit('error', message))
 </script>
 
 <template>
-  <button type="button" class="btn-primary" @click="onClick(text)">
+  <button type="button" class="btn-primary" @click="copy(text)">
     <svg
       v-if="!copied"
       class="btn-icon"
