@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A GitHub Actions workflow that type-checks and runs the test suite on every
+  push to `main` and every pull request.
+
 ## [1.3.1] - 2026-07-29
 
 ### Added
