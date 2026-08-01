@@ -22,6 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `POST /api/shorten` and the short links themselves as the only routes that
   reach a Function. Nothing about the site behaves differently.
 
+### Security
+
+- Static responses now carry a Content Security Policy, `X-Frame-Options` and
+  `Permissions-Policy`, set from a hand-written `public/_headers` file. The
+  policy allows only same-origin scripts, styles and connections, and forbids
+  framing the site at all. `Strict-Transport-Security` is deliberately left out:
+  browsers remember it for the whole `max-age`, so removing the header later
+  does not undo it.
+
 ## [1.3.1] - 2026-07-29
 
 ### Added
