@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-08-01
+
 ### Added
 
 - A GitHub Actions workflow that type-checks and runs the test suite on every
@@ -155,7 +157,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Public domain LICENSE file.
 - `.gitignore` excludes the `.agent_plans` directory.
 
-[Unreleased]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.3.2...HEAD
+[1.3.2]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.1.1...v1.2.0
