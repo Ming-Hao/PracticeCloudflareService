@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A GitHub Actions workflow that type-checks and runs the test suite on every
   push to `main` and every pull request.
 
+### Changed
+
+- Loading a page no longer wakes a Function. The routing file Cloudflare Pages
+  generates sends every request through the Functions runtime, because the
+  short-link handler sits at the root and its route widens to `/*`; the home
+  page and each asset were waking a Function only to fall through to the static
+  file. A hand-written `public/_routes.json` now excludes them, leaving
+  `POST /api/shorten` and the short links themselves as the only routes that
+  reach a Function. Nothing about the site behaves differently.
+
 ## [1.3.1] - 2026-07-29
 
 ### Added
