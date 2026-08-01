@@ -1,70 +1,77 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (claude.ai/code) when working in this repository.
 
 ## Project overview
 
-A practice project for building a URL shortener on Cloudflare Pages: a Vue 3 SPA frontend plus Cloudflare Pages Functions backend, backed by a D1 (SQLite) database. The frontend has a single page ([src/views/HomeView.vue](src/views/HomeView.vue)) with a form that calls the shortener API and shows the resulting short link.
+URL shortener practice project on Cloudflare Pages: a Vue 3 SPA (`src/`) plus Pages Functions (`functions/`) backed by a D1 (SQLite) database. One frontend route; link history is stored client-side in IndexedDB, encrypted.
 
 ## Commands
 
-```sh
-npm install        # install dependencies
-npm run dev         # start Vite dev server (frontend), proxies /api to localhost:8788
-npm run build       # type-check (vue-tsc --build) + production build to dist/
+```bash
+npm install
+npm run dev         # Vite dev server :5173, proxies /api/* to :8788
+npm run build       # vue-tsc --build + production build to dist/
 npm run type-check  # vue-tsc --build only
-npm run preview     # preview the production build
-npm test            # node --test — runs every __tests__/**/*.test.{ts,js} under src/ and functions/
+npm run preview
+npm test            # node --test, runs __tests__/**/*.test.{ts,js} under src/ and functions/
 ```
 
-There is no lint script configured. `npm test` runs on Node's built-in test runner and type-stripping (no ts-node/vitest) — TypeScript syntax that only type-strips (e.g. `interface`, type annotations) works, but non-erasable TS syntax like constructor parameter properties (`constructor(public x: number)`) does not; write plain-JS-shaped classes in test-covered code instead.
+No lint script is configured.
 
-Tests that touch IndexedDB (`src/utils/__tests__/`) run against `fake-indexeddb`, since Node has no IndexedDB of its own and `historyDb.ts` reads the global `indexedDB` directly. `resetIndexedDb()` in [src/utils/\_\_tests\_\_/indexedDbHelpers.ts](src/utils/__tests__/indexedDbHelpers.ts) swaps in a fresh `IDBFactory` — call it from a `beforeEach`, not per test, because it is global state a new test can silently forget. Any helper that opens the database must `close()` its connection before resolving: `openDb()` registers no `onblocked` handler, so a connection left open at an older version makes the upgrade hang rather than fail.
+Running the full stack locally needs **two processes at once**:
 
-To exercise the full stack locally (frontend + Pages Functions + D1), you need **two processes running at once**:
-
-```sh
-npx wrangler pages dev dist   # serves functions/ + D1 binding on http://localhost:8788
-npm run dev                   # serves the Vite SPA on http://localhost:5173, proxying /api/* to 8788
+```bash
+npx wrangler pages dev dist   # functions/ + D1 binding on :8788
+npm run dev                   # SPA on :5173
 ```
 
-`wrangler.toml` binds the D1 database as `DB` (database name `shortlink-db`); the schema in [schema.sql](schema.sql) must be applied to that database (e.g. `npx wrangler d1 execute shortlink-db --file=schema.sql`) before the functions will work. The Vite dev proxy is configured in [vite.config.ts](vite.config.ts) (`server.proxy['/api']`) — it only forwards `/api/*`, not the `GET /:code` redirect route, so visiting a generated short link only resolves against `http://localhost:8788`, not the Vite dev server.
+The Vite proxy only forwards `/api/*` — `GET /:code` and `DELETE /:code` have to be exercised against `http://localhost:8788` directly.
+
+First-time setup: apply `schema.sql` to the D1 database bound as `DB` in `wrangler.toml`:
+`npx wrangler d1 execute shortlink-db --file=schema.sql`.
 
 ## Architecture
 
-- **Frontend**: Vite + Vue 3 + vue-router SPA under `src/`, single route (`home` → [src/views/HomeView.vue](src/views/HomeView.vue)) defined in [src/router/index.ts](src/router/index.ts). `HomeView.vue` posts to `/api/shorten` with `fetch`, renders the returned short link, and mounts the history UI (`HistoryTrigger` / `HistoryDrawer`).
-- **Backend**: Cloudflare Pages Functions under `functions/`, using file-based routing:
-  - [functions/api/shorten.js](functions/api/shorten.js) — `POST /api/shorten`, creates a short link. Two things worth knowing that a quick read won't make obvious: `created_at` is generated explicitly with `new Date().toISOString()` rather than relying on SQLite's `CURRENT_TIMESTAMP` column default, because the two formats differ — `CURRENT_TIMESTAMP` produces `YYYY-MM-DD HH:MM:SS` with no timezone marker, which browsers parse as *local* time, while the frontend needs the explicit `Z` of ISO 8601; and `delete_token` is only ever returned in this one response — the server has no other way to look it up, so the frontend must capture it immediately.
-  - [functions/[code].js](functions/[code].js) — `GET /:code`: looks up `short_code` in the `links` table (excluding soft-deleted rows via `deleted_at IS NULL`), increments its `clicks` counter, and issues a 302 redirect to `target_url`; returns a 404 response if not found or already deleted. The counter increment is handed to `context.waitUntil` rather than awaited, and the 302 is built by hand (`new Response(null, { status: 302, headers: { Location, 'Cache-Control': 'no-store' } })`) because `Response.redirect()` returns immutable headers that cannot take `Cache-Control` — without `no-store` a cached redirect would outlive edits/deletes and stop the counter. Any test hitting this route must `await ctx._settle()` before the test DB is disposed, or the background write fails with `ERR_DISPOSED`. `DELETE /:code` (`onRequestDelete`): reads `{ delete_token }` from the request body, 404s if the short code doesn't exist, 403s if the token doesn't match, otherwise soft-deletes by setting `deleted_at = CURRENT_TIMESTAMP` — re-deleting an already soft-deleted link with a matching token is treated as an idempotent success (200), not an error. Every error response from both handlers is `Response.json({ error })`, never plain text, so the frontend can always `await res.json()`.
-- **Database**: single `links` table ([schema.sql](schema.sql)) with `short_code` (unique), `target_url`, `clicks`, `created_at`, `delete_token`, `deleted_at`. Accessed via the `env.DB` D1 binding declared in [wrangler.toml](wrangler.toml) using `.prepare(...).bind(...)` parameterized queries — always use parameter binding, never string-interpolate SQL.
-- Pages Functions build output directory is `dist` (`pages_build_output_dir` in `wrangler.toml`), i.e. the same output as the Vite frontend build.
-- **Client-side history** (no server-side ownership tracking — the server never knows "whose" link a given `short_code` is):
-  - [src/utils/crypto.ts](src/utils/crypto.ts) — thin Web Crypto wrapper: `deriveKey(password, salt)` (PBKDF2 → AES-GCM key), `encrypt(data, key)` (returns `{ iv, ciphertext }`), `decrypt(iv, ciphertext, key)` (returns `null`, not a thrown error, on AES-GCM auth failure — i.e. wrong password).
-  - [src/utils/historyDb.ts](src/utils/historyDb.ts) — IndexedDB CRUD wrapper storing only encrypted blobs. `id` is a random UUID generated by the caller, independent of `short_code`, because the same link can have multiple encrypted copies under different passwords (see "save as" below).
-  - [src/composables/useHistory.ts](src/composables/useHistory.ts) — module-level (singleton) reactive state shared across all components, managing `sessionList`, `savedList`, and `currentIdentity` (the password last used to successfully save-new or load). All three are memory-only and reset on page reload — there is no persisted "logged in" state.
-  - [src/components/history/](src/components/history/) — `HistoryTrigger.vue` (badge + open/close toggle), `HistoryDrawer.vue` (session/saved lists, load, clear-all), `HistoryItem.vue` (per-entry save/delete/click-through), `PasswordPromptDialog.vue`, `ConfirmDialog.vue` (also reused as the binary "use current identity vs. save with a new password" choice, to avoid a dedicated sixth component).
+- **Frontend** — Vite + Vue 3 + vue-router, single route → `src/views/HomeView.vue`, which POSTs to `/api/shorten` and mounts the history UI (`src/components/history/`).
+- **Backend** — Pages Functions, file-based routing: `functions/api/shorten.js` (create), `functions/[code].js` (`GET` → 302 redirect + click counter, `DELETE` → soft-delete via `deleted_at`).
+- **Database** — one `links` table (`schema.sql`), accessed through the `env.DB` binding. Always use `.prepare().bind()`; never string-interpolate SQL.
+- **Client-side history** — `src/utils/crypto.ts` (PBKDF2 → AES-GCM; `decrypt` returns `null` on wrong password, doesn't throw), `src/utils/historyDb.ts` (IndexedDB, stores encrypted blobs only, `id` is a caller-generated UUID independent of `short_code`), `src/composables/useHistory.ts` (singleton reactive state, memory-only, resets on reload).
+- Pages build output dir is `dist` — the same output as the Vite build.
 
-## Authorization model for delete / soft-delete
+## Authorization model
 
-- The server does not track who created a link. Deleting one requires presenting the exact `delete_token` returned at creation time — possession of the token is the only authorization check (see `onRequestDelete` above).
-- All local history (which links "belong" to a user, on this device) lives client-side: encrypted with a user-chosen password (PBKDF2 + AES-GCM, random salt/IV per record) and stored in IndexedDB. The password itself is never persisted (memory-only `currentIdentity`) and there is no password recovery — see the in-app copy in `PasswordPromptDialog.vue`.
-- A link can be saved locally under more than one password ("save as" on an already-saved entry re-encrypts under a new password and optionally deletes the old encrypted copy, independent of the server-side row). Because of this, one password's local copy of a link can go stale (already deleted via another password) without the server being able to push a notification — the frontend only discovers this reactively when the user clicks the link (404) or deletes it again (idempotent 200), see `removeStaleLocalOnly` / `onLinkClick` in `HistoryItem.vue`.
+The server never records who created a link. `delete_token` is returned **only** in the `POST /api/shorten` response and there is no other way to look it up, so the frontend must capture it immediately; possession of that token is the sole authorization check for delete.
+
+Ownership therefore lives entirely client-side: encrypted under a user-chosen password (random salt/IV per record), never persisted, no recovery. The same link can be saved under more than one password, so one local copy can go stale after another deletes the server-side row — the frontend only discovers this reactively, on click (404) or re-delete (idempotent 200). See `removeStaleLocalOnly` / `onLinkClick` in `HistoryItem.vue`.
+
+## Gotchas
+
+Non-obvious constraints. Most of these fail silently when broken.
+
+- **`created_at`** is written explicitly with `new Date().toISOString()`, not SQLite's `CURRENT_TIMESTAMP` default — the default has no timezone marker and browsers parse it as *local* time.
+- **`functions/[code].js` response contract** is deliberate, not incidental. `GET` looks up `short_code` with `deleted_at IS NULL` — a query that drops that filter resurrects deleted links — and 404s when there's no match. `DELETE` 404s on an unknown code, 403s on a token mismatch, and treats re-deleting an already soft-deleted link with a matching token as an idempotent **200**, not an error; the frontend relies on that to detect stale local copies.
+- **The 302** in `functions/[code].js` is hand-built rather than `Response.redirect()`, which returns immutable headers that can't take `Cache-Control: no-store`. Without `no-store`, a cached redirect outlives edits/deletes and stops the counter.
+- **Click counting** is handed to `context.waitUntil`, not awaited. Tests hitting that route must `await ctx._settle()` before the test DB is disposed, or the background write fails with `ERR_DISPOSED`.
+- **Error responses** are always `Response.json({ error })`, never plain text, so the frontend can always `await res.json()`.
+- **URL validation** (`functions/api/shorten.js`): reject non-strings and inputs over `MAX_URL_LENGTH` (2048) first, then `new URL()` in try/catch, then check `protocol` is `http:`/`https:`, then refuse the request's own hostname. Never use prefix checks like `url.startsWith('http')` — that was tried first and let mismatched protocols and embedded whitespace through. (The self-hostname check only sees the hostname the request arrived on; a deployment reachable under both `*.pages.dev` and a custom domain can still shorten a link to its other hostname. Accepted for this project.)
+- **Native `<dialog>`** can't rely on the browser's default modal centering — the global `* { margin: 0 }` reset in `src/assets/base.css` overrides it. Center explicitly: `position: fixed; top/left: 50%; transform: translate(-50%, -50%); margin: 0`.
+- **`public/_routes.json`** is hand-written and overrides Wrangler's generated version, which would be `{"include":["/*"],"exclude":[]}` because `functions/[code].js` is a root-level catch-all — waking a Function once per static asset. Any new path that must reach a Function has to stay out of `exclude`; getting it wrong fails silently, so exercise the route after adding one.
+- **`public/_headers`** CSP deliberately omits `'unsafe-inline'`. That only holds because nothing emits inline script/style — no `:style` bindings, no `v-show`, no `<Transition>`, no external fonts or CDNs. Introducing any of those must widen the CSP in the same change. `_headers` applies to static responses only; Function responses set headers in code.
+- **Tests** run on Node's built-in runner with type-stripping (no ts-node/vitest). Non-erasable TS syntax — e.g. `constructor(public x: number)` — breaks; keep test-covered classes plain-JS-shaped.
+- **IndexedDB tests** run against `fake-indexeddb`. Call `resetIndexedDb()` (`src/utils/__tests__/indexedDbHelpers.ts`) from `beforeEach`, not per test — it's global state a new test can silently forget. Any helper that opens the DB must `close()` before resolving: `openDb()` registers no `onblocked`, so a connection left open at an older version makes the upgrade hang rather than fail.
+- **`HistoryDbDeps` has two implementations** — the real one and the in-memory fake injected by `useHistory.test.ts`. `historyDb.contract.test.ts` runs one assertion set against both and is the only thing that detects drift; a stale fake leaves every `useHistory` test green while describing a storage layer that no longer exists (already happened once). Fix whichever implementation is wrong — never relax the contract.
+
+## Conventions
+
+- `functions/` is plain JavaScript; `src/` is TypeScript.
+- All code, comments, and user-facing strings in English — do not introduce Traditional Chinese.
+- Reuse `.btn-primary` / `.btn-secondary` / `.btn-icon` from `src/assets/buttons.css` (imported globally via `main.css`) instead of redefining button styles in `<style scoped>`. Icons follow the shape used in `HomeView.vue`: 24×24 viewBox, `stroke="currentColor"`, `stroke-width="2"`, `class="btn-icon"`.
+- Before adding a dialog under `src/components/history/`, check whether an existing one can be parameterized. `ConfirmDialog.vue` already doubles as the binary "use current identity vs. save with a new password" prompt, deliberately avoiding a sixth component.
+- Destructive/dismissive actions add `.btn-danger` on top of `.btn-secondary`, switching the green hover to a red wash. Reuse it rather than inventing a new red variant.
+- Bumping `version` in `package.json` also means adding a matching `## [x.y.z]` entry (with compare link) to `CHANGELOG.md` and creating a `vX.Y.Z` git tag on that commit.
 
 ## Workflow
 
-- Before implementing a component or section with no existing visual precedent in the repo (e.g. a brand-new drawer, dialog, or page layout — not modeled on anything already built), first produce a local HTML mockup via the mockup skill and get it approved before editing files under `src/`. Tweaks to an existing component's layout, spacing, or colors don't need this step.
-- When a single change touches styles across two or more `.vue` files, run `/simplify` before wrapping up to catch duplicated styles/classes that should be consolidated (e.g. into shared files like `src/assets/buttons.css`).
-
-## Conventions observed in this repo
-
-- Backend code (`functions/`) uses plain JavaScript (`.js`), not TypeScript, even though the frontend is TypeScript.
-- All code and comments (including `functions/`) are written in English, per the global instruction — do not introduce Traditional Chinese into code, comments, or user-facing strings.
-- URL validation (`functions/api/shorten.js`) rejects non-strings and inputs over `MAX_URL_LENGTH` (2048) first, then uses `new URL(url)` wrapped in try/catch, then checks `protocol` is `http:`/`https:`, then refuses hostnames matching the request's own — do not validate URLs with string prefix checks (e.g. `url.startsWith('http')`), which was tried first and let malformed input through (mismatched protocols, embedded whitespace). The self-hostname check only compares against the hostname the request arrived on, so a deployment reachable under both `*.pages.dev` and a custom domain can still shorten a link aimed at its other hostname; that limitation is accepted for this practice project.
-- Native `<dialog>` elements (e.g. the result modal in `HomeView.vue`, and every dialog under `src/components/history/`) cannot rely on the browser's default `dialog:modal { margin: auto }` centering — `src/assets/base.css` has a global `*, *::before, *::after { margin: 0 }` reset that overrides it. Any new dialog needs explicit centering (`position: fixed; top/left: 50%; transform: translate(-50%, -50%); margin: 0`).
-- `vite.config.ts`'s dev proxy only forwards `/api/*`, not `/:code` (`GET` or `DELETE`) — exercising the delete/redirect routes locally requires going through `http://localhost:8788` (`wrangler pages dev`) directly, same limitation as documented above for the redirect route.
-- Icon+text button styles (`.btn-primary`, `.btn-secondary`, `.btn-icon`) live in [src/assets/buttons.css](src/assets/buttons.css), imported globally via [src/assets/main.css](src/assets/main.css) — not scoped per component. Any new button meant to match the existing look (main form, history item actions, dialogs) should reuse these classes instead of redefining them in a component's `<style scoped>` block; icons follow the same SVG shape used in `HomeView.vue` and `HistoryItem.vue` (24×24 viewBox, `stroke="currentColor"`, `stroke-width="2"`, `class="btn-icon"`).
-- `.btn-secondary` hovers green (`#2ecc71`) by default. Destructive/dismissive actions (Delete in `HistoryItem.vue`, Close in `HomeView.vue`) add a `.btn-danger` modifier class on top, which switches the hover to a red wash (soft red background + red border + red icon) instead — reuse `.btn-danger` for any future button with the same "leaves/removes something" semantics rather than inventing a new red variant.
-- `HistoryDbDeps` has two implementations: the real [src/utils/historyDb.ts](src/utils/historyDb.ts) and the in-memory fake in [src/utils/\_\_tests\_\_/fakeHistoryDb.ts](src/utils/__tests__/fakeHistoryDb.ts) that `useHistory.test.ts` injects. Changing either one means keeping [src/utils/\_\_tests\_\_/historyDb.contract.test.ts](src/utils/__tests__/historyDb.contract.test.ts) green — it runs one set of assertions against both. Nothing else detects a drift between them: the fake going out of step leaves every `useHistory` test passing while they describe a storage layer that no longer exists (this already happened once — the fake appended on a repeated `id` where the real `put` overwrites). Fix the implementation that is wrong, never relax the contract.
-- Whenever `package.json`'s `version` is bumped, also (1) add a matching `## [x.y.z]` entry to `CHANGELOG.md` (with its compare-link line at the bottom) and (2) create a git tag `vX.Y.Z` pointing at that commit — keep version number, changelog entry, and tag in sync.
-- [public/\_routes.json](public/_routes.json) is hand-written and **overrides** the one Wrangler would auto-generate (Vite copies `public/` verbatim into `dist/`, the Pages build output directory). The generated version is always `{"include":["/*"],"exclude":[]}` because `functions/[code].js` is a root-level catch-all — its `/:code` route globs to `/*`, which swallows `/api/shorten` and every static asset, so a plain page load wakes a Function once per asset for nothing. Any new path that must reach a Function has to stay outside the `exclude` list; getting it wrong fails silently (the request is served as a static asset or 404s, with no error), so exercise the affected route after adding one.
-- [public/\_headers](public/_headers) is the other hand-written Pages config file copied verbatim into `dist/`. Its CSP deliberately omits `'unsafe-inline'` from `script-src` and `style-src`, which the current code allows because the built `index.html` has no inline `<script>`/`<style>` and nothing in `src/` emits an inline `style` attribute (no `:style` bindings, no `v-show`, no `<Transition>`, no external fonts or CDNs). Introducing any of those breaks the page silently — the browser blocks the resource and only the devtools console says so — so widening the CSP has to happen in the same change. Note the `_routes.json` exclusions mean `/`, `/assets/*` and `/favicon.ico` are static responses, which is what `_headers` applies to; Function responses (`/api/shorten`, `/:code`) need their headers set in code.
+- For UI with no visual precedent in the repo (a brand-new drawer, dialog, or page layout), produce a local HTML mockup via the mockup skill and get it approved before editing `src/`. Layout/spacing/color tweaks to existing components don't need this.
+- When one change touches styles across two or more `.vue` files, run `/simplify` before wrapping up to consolidate duplicated styles into shared files like `src/assets/buttons.css`.
