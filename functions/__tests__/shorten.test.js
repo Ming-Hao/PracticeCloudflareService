@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { withTestDb, createContext } from './helpers.js'
-import { onRequestPost, generateCode } from '../api/shorten.js'
+import { onRequestPost, generateCode, isPrivateHostname } from '../api/shorten.js'
 
 const SHORTEN_URL = 'https://example.test/api/shorten'
 
@@ -225,6 +225,83 @@ test('a url pointing at this service\'s own domain returns 400', async () => {
   await withTestDb(async (db) => {
     const res = await onRequestPost(createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url: 'https://example.test/abc' } }))
     assert.equal(res.status, 400)
+  })
+})
+
+test('isPrivateHostname returns true for private, loopback, link-local, and internal-suffixed hostnames', () => {
+  const hostnames = [
+    'localhost',
+    'localhost.',
+    '127.0.0.1',
+    '10.0.0.5',
+    '100.64.0.1',
+    '0.0.0.0',
+    '169.254.169.254',
+    '172.16.0.1',
+    '172.31.255.255',
+    '192.168.1.1',
+    '[::1]',
+    '[::ffff:7f00:1]',
+    '[::ffff:0:0]',
+    '[fd00::1]',
+    '[fe80::1]',
+    'foo.internal',
+    'printer.local',
+  ]
+  for (const hostname of hostnames) {
+    assert.equal(isPrivateHostname(hostname), true, `expected ${hostname} to be private`)
+  }
+})
+
+test('isPrivateHostname returns false for public hostnames and addresses just outside the private ranges', () => {
+  const hostnames = [
+    '11.0.0.1',
+    '100.63.0.1',
+    '100.128.0.1',
+    '128.0.0.1',
+    '169.253.0.1',
+    '172.15.0.1',
+    '172.32.0.1',
+    'notlocalhost.com',
+    'internal.example.com',
+    '10.0.0.1.example.com',
+    'fc2.com',
+    '[2001:db8::1]',
+    '[fec0::1]',
+    '[::ffff:808:808]',
+    '[::ffff:1]',
+  ]
+  for (const hostname of hostnames) {
+    assert.equal(isPrivateHostname(hostname), false, `expected ${hostname} to not be private`)
+  }
+})
+
+test('POST /api/shorten rejects URLs whose normalized hostname points at a private address', async () => {
+  await withTestDb(async (db) => {
+    const urls = [
+      'http://0177.0.0.1/',
+      'http://2130706433/',
+      'http://127.1/',
+      'http://0/',
+      'http://[::1]/',
+      'http://[::ffff:127.0.0.1]/',
+      'http://foo.internal/',
+    ]
+    for (const url of urls) {
+      const res = await onRequestPost(createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url } }))
+      const body = await res.json()
+      assert.equal(res.status, 400, `expected ${url} to be rejected`)
+      assert.match(body.error, /private or local address/)
+    }
+  })
+})
+
+test('a request rejected for pointing at a private address inserts no row', async () => {
+  await withTestDb(async (db) => {
+    const before = await countRows(db)
+    const res = await onRequestPost(createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url: 'http://127.0.0.1/' } }))
+    assert.equal(res.status, 400)
+    assert.equal(await countRows(db), before)
   })
 })
 

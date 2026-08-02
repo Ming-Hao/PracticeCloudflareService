@@ -24,6 +24,64 @@ export function generateCode(length = 8) {
   return code;
 }
 
+// dotted-quad only: new URL() has already folded octal/hex/integer/IPv4-mapped forms
+// into this shape before the hostname reaches here, so no other IPv4 notation is handled.
+function isPrivateIPv4(hostname) {
+  if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) return false;
+  const [a, b] = hostname.split(".").map(Number);
+  if (a === 0) return true; // 0.0.0.0/8
+  if (a === 10) return true; // 10.0.0.0/8
+  if (a === 100 && b >= 64 && b <= 127) return true; // 100.64.0.0/10 (CGNAT)
+  if (a === 127) return true; // 127.0.0.0/8
+  if (a === 169 && b === 254) return true; // 169.254.0.0/16, includes the cloud metadata endpoint
+  if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12
+  if (a === 192 && b === 168) return true; // 192.168.0.0/16
+  return false;
+}
+
+// A 16-bit IPv6 group split into the two octets it represents once reassembled as IPv4.
+function hexGroupToOctetPair(group) {
+  const value = parseInt(group, 16);
+  return [(value >> 8) & 0xff, value & 0xff];
+}
+
+// Only reached for bracketed literals (hostname.startsWith("[")) — see isPrivateHostname.
+function isPrivateIPv6(hostname) {
+  const inner = hostname.slice(1, -1);
+  if (inner === "::1" || inner === "::") return true; // loopback / unspecified, must be exact matches
+  if (inner.startsWith("::ffff:")) {
+    // IPv4-mapped: reconstitute the dotted-quad and defer to the IPv4 ranges.
+    // Not a mapped address unless it splits into exactly two 16-bit groups.
+    const groups = inner.slice("::ffff:".length).split(":");
+    if (groups.length !== 2) return false;
+    const [hi, lo] = groups.map(hexGroupToOctetPair);
+    return isPrivateIPv4(`${hi[0]}.${hi[1]}.${lo[0]}.${lo[1]}`);
+  }
+  if (inner.startsWith("fc") || inner.startsWith("fd")) return true; // fc00::/7, ULA
+  if (["fe8", "fe9", "fea", "feb"].some((prefix) => inner.startsWith(prefix))) return true; // fe80::/10, link-local
+  return false;
+}
+
+// hostname must already be normalized by `new URL()` (see functions/__tests__/shorten.test.js
+// for the forms this collapses). DNS is out of scope: a hostname that only resolves to a
+// private address at request time — not in its literal form — is not caught here.
+export function isPrivateHostname(hostname) {
+  const name = hostname.endsWith(".") ? hostname.slice(0, -1) : hostname;
+  if (
+    name === "localhost" ||
+    name.endsWith(".localhost") ||
+    name.endsWith(".internal") ||
+    name.endsWith(".local") ||
+    name.endsWith(".home.arpa")
+  ) {
+    return true;
+  }
+  if (hostname.startsWith("[")) {
+    return isPrivateIPv6(hostname);
+  }
+  return isPrivateIPv4(hostname);
+}
+
 export async function onRequestPost(context, { codeGenerator = generateCode } = {}) {
   const { request, env } = context;
 
@@ -59,6 +117,9 @@ export async function onRequestPost(context, { codeGenerator = generateCode } = 
     // still shorten a link aimed at one of its other hostnames.
     if (parsedUrl.hostname === new URL(request.url).hostname) {
       return Response.json({ error: "Cannot shorten a link pointing at this service" }, { status: 400 });
+    }
+    if (isPrivateHostname(parsedUrl.hostname)) {
+      return Response.json({ error: "Cannot shorten a link pointing at a private or local address" }, { status: 400 });
     }
 
     // Generate the delete token, only ever returned in this response

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- `POST /api/shorten` rejects URLs whose hostname is a private, loopback, or
+  link-local address — including octal, hex, integer, and IPv4-mapped IPv6
+  forms of those addresses, and names ending in `.internal`, `.local`, or
+  `.home.arpa`. These were previously accepted and now return 400. The check
+  is a string comparison against the hostname as written; a domain name that
+  only resolves to a private address via DNS is not caught.
+
 ## [1.3.2] - 2026-08-01
 
 ### Added
