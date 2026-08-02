@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A page footer showing the app version, a link to the GitHub repository, and
+  the deployment platform. The commit the build came from fades in next to the
+  repository link on hover, and links to that commit. Version and commit are
+  injected at build time, so bumping `package.json` needs no frontend edit. The
+  commit falls back to the local git checkout when `CF_PAGES_COMMIT_SHA` is
+  absent, and its segment is dropped entirely when neither is available.
+
 ### Changed
+
+- `#app` is now a full-height flex column, so the footer sits at the bottom of
+  the viewport instead of directly under the form on short pages.
 
 - `useHistory()` now resolves its store through Vue's `inject`, falling back to
   the existing module singleton when nothing provides one. Components are

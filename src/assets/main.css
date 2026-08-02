@@ -6,6 +6,13 @@
   margin: 0 auto;
   padding: 10vh 2rem 2rem;
   font-weight: normal;
+
+  /* Keeps the footer at the bottom of the viewport on short pages. Only direct
+     children take part: App.vue wraps the page in one .page-content item so that
+     nothing laid out with `margin: 0 auto` becomes a flex item. */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 a,
