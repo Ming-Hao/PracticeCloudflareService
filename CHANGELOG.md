@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-08-02
+
 ### Security
 
 - `POST /api/shorten` rejects URLs whose hostname is a private, loopback, or
@@ -166,7 +168,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Public domain LICENSE file.
 - `.gitignore` excludes the `.agent_plans` directory.
 
-[Unreleased]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.3.2...HEAD
+[Unreleased]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.3.3...HEAD
+[1.3.3]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/Ming-Hao/PracticeCloudflareService/compare/v1.2.0...v1.3.0
