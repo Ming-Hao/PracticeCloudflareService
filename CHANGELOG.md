@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Static responses now carry `X-Content-Type-Options: nosniff`, so a browser
+  reads them as the `Content-Type` they declare instead of sniffing the body.
+  Function responses are unaffected — `public/_headers` covers static responses
+  only.
+
 ### Fixed
 
 - Clicking a short link in the history list no longer depends on the stale-link
