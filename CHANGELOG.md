@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Local history operations no longer leave their IndexedDB connection open.
+  Each read and write opened one and never closed it, so connections
+  accumulated for as long as the page stayed loaded. Nothing broke today, but
+  the next time the database schema changes, the upgrade needs exclusive
+  access: a leftover connection in another tab would have stalled it
+  indefinitely, with no error and no timeout.
+
 ## [1.3.3] - 2026-08-02
 
 ### Security
