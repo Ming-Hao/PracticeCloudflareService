@@ -22,7 +22,17 @@ export async function resolveLinkClick(
   shortUrl: string,
   deps: LinkClickDeps = defaultDeps,
 ): Promise<LinkClickResult> {
-  const res = await deps.fetch(shortUrl, { method: 'HEAD' })
+  let res: Response
+  try {
+    res = await deps.fetch(shortUrl, { method: 'HEAD' })
+  } catch {
+    // A failed probe says nothing about the link — an ad blocker, a corporate proxy, or a
+    // dropped connection all land here while the link itself is fine. Navigate anyway and
+    // let the browser report: treating a failed probe as a dead link would turn an
+    // enhancement into a hard dependency and lock users out of their own links.
+    deps.navigate(shortUrl)
+    return 'navigated'
+  }
   if (res.status === 404) {
     return 'stale'
   }

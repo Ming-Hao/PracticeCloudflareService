@@ -28,6 +28,28 @@ test('resolveLinkClick — a valid link probes once and navigates once', async (
   assert.equal(navigateCalls, 1)
 })
 
+test('resolveLinkClick — a failed probe still navigates', async () => {
+  let probeCalls = 0
+  let navigateCalls = 0
+  const fakeFetch = async () => {
+    probeCalls++
+    // What an ad blocker, a dropped connection, or an offline tab actually produces.
+    throw new TypeError('Failed to fetch')
+  }
+  const fakeNavigate = () => {
+    navigateCalls++
+  }
+
+  const result = await resolveLinkClick('https://example.com/AAAAAA', {
+    fetch: fakeFetch,
+    navigate: fakeNavigate,
+  })
+
+  assert.equal(result, 'navigated')
+  assert.equal(probeCalls, 1)
+  assert.equal(navigateCalls, 1)
+})
+
 test('resolveLinkClick — a stale link probes once and never navigates', async () => {
   let probeCalls = 0
   let navigateCalls = 0

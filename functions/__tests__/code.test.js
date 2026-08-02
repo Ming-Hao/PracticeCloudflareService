@@ -85,7 +85,12 @@ test('HEAD /:code — existing short code returns 200', async () => {
     const ctx = createContext({ db, method: 'HEAD', params: { code: 'AAAAAA' } })
     const res = await onRequestHead(ctx)
 
+    // Not cosmetic, and not a candidate for mirroring GET's 302: resolveLinkClick probes
+    // with fetch's default redirect: 'follow', so a 302 here gets followed cross-origin to
+    // the target site and fails CORS. If you change this, add redirect: 'manual' back to
+    // src/utils/linkClick.ts in the same change.
     assert.equal(res.status, 200)
+    assert.equal(res.headers.get('Location'), null)
   })
 })
 

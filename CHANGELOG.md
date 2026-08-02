@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Clicking a short link in the history list no longer depends on the stale-link
+  probe succeeding. An ad blocker or a dropped connection made the probe fail,
+  which showed `Failed to fetch` and left the link unopened even though the link
+  itself was fine. A failed probe now navigates anyway and lets the browser
+  report, and the remaining error message is a sentence instead of the raw
+  browser one.
+
 ## [1.4.0] - 2026-08-02
 
 ### Changed

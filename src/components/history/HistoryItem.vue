@@ -114,8 +114,8 @@ async function onLinkClick() {
     if (result === 'stale') {
       activeDialog.value = 'confirm-stale'
     }
-  } catch (err) {
-    errorMessage.value = err instanceof Error ? err.message : 'Failed to open link'
+  } catch {
+    errorMessage.value = 'Could not open the link — please try again.'
   }
 }
 
