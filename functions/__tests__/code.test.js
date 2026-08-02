@@ -201,9 +201,14 @@ test('GET /:code — a successful redirect includes Cache-Control: no-store', as
   })
 })
 
-// Covers all three plain-text responses in [code].js, not just DELETE 404: fixing one
-// of them would otherwise turn this test green while the other two stayed plain text.
-// The 403 branch is the one code review flagged as the future `await res.json()` trap.
+// Covers both DELETE error branches at once: fixing one would otherwise turn this test green
+// while the other stayed plain text. The 403 branch is the one code review flagged as the
+// future `await res.json()` trap.
+//
+// GET 404 used to be asserted here as a third case. It no longer is, and that is the point of
+// the split rather than an omission: the JSON contract exists because the frontend calls
+// `await res.json()` on these responses, and nothing calls GET /:code that way — a visitor
+// arrives by navigation, so that branch answers with a page (see the test below).
 test('DELETE /:code — error responses are JSON, not plain text', async () => {
   await withTestDb(async (db) => {
     await insertLink(db, { short_code: 'AAAAAA', delete_token: 'correct-token' })
@@ -218,10 +223,32 @@ test('DELETE /:code — error responses are JSON, not plain text', async () => {
       const body = await res.json()
       assert.equal(typeof body.error, 'string', `${label} should carry an error string`)
     }
+  })
+})
 
-    // GET 404 is the third plain-text response.
-    const getRes = await onRequestGet(createContext({ db, params: { code: 'NOPE00' } }))
-    assert.match(getRes.headers.get('Content-Type') ?? '', /application\/json/, 'GET 404 should respond with JSON')
-    assert.equal(typeof (await getRes.json()).error, 'string', 'GET 404 should carry an error string')
+// The 404 a human actually reads. Asserting the way home rather than the wording: the copy is
+// free to change, but a dead end with no route back to the site is the failure this pins.
+test('GET /:code — the 404 is a readable HTML page linking back to the site', async () => {
+  await withTestDb(async (db) => {
+    const res = await onRequestGet(createContext({ db, params: { code: 'NOPE00' } }))
+    const body = await res.text()
+
+    assert.equal(res.status, 404)
+    assert.match(res.headers.get('Content-Type') ?? '', /text\/html/)
+    assert.match(body, /^<!doctype html>/i)
+    assert.match(body, /<html lang="en">/)
+    assert.match(body, /href="\/"/)
+  })
+})
+
+// Same reasoning as the 302's no-store, and it matters for the same reason. A short code that
+// 404s today has not been taken yet — `short_code` is UNIQUE, so a soft-deleted one can never
+// be reissued, but one that never existed can be handed out tomorrow. A cached 404 would then
+// keep answering for a link that is live.
+test('GET /:code — the 404 is not cacheable', async () => {
+  await withTestDb(async (db) => {
+    const res = await onRequestGet(createContext({ db, params: { code: 'NOPE00' } }))
+
+    assert.equal(res.headers.get('Cache-Control'), 'no-store')
   })
 })

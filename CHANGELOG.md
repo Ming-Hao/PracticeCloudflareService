@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Following a short link that was deleted or never existed now shows a page
+  saying so, with a link back to the site. It used to answer with the raw JSON
+  `{"error":"Short link not found"}`, which no caller ever read — the frontend
+  probes a link with HEAD and reads only the status. The page is not cacheable,
+  so an unused code that 404s today still works once it is handed out.
+
 ### Fixed
 
 - Local history operations no longer leave their IndexedDB connection open.

@@ -1,3 +1,67 @@
+// The only error response a person reads rather than a script: a visitor gets here by clicking
+// a link, not by calling an API, so this branch answers with a page while the DELETE branches
+// keep returning JSON for `await res.json()`.
+//
+// The CSS is inline because a Function response cannot reference the hashed bundle Vite emits,
+// which also puts this page outside the `public/_headers` CSP — that policy covers static
+// responses only. Colours and the button are copied from src/assets/base.css and buttons.css;
+// nothing imports them here, so editing those files will not update this page.
+//
+// `no-store` for the same reason as the redirect below. A code that 404s today is simply
+// unallocated — `short_code` is UNIQUE so a soft-deleted one is never reissued, but an unused
+// one can be handed out tomorrow, and a cached 404 would outlive the link it denies.
+function notFoundPage() {
+  return new Response(
+    `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Link not found</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --color-background: #fff; --color-heading: #2c3e50; --color-text-soft: rgba(60,60,60,.66);
+}
+@media (prefers-color-scheme: dark) {
+  :root { --color-background: #181818; --color-heading: #fff; --color-text-soft: rgba(235,235,235,.64) }
+}
+body { margin: 0; min-height: 100vh; display: grid; align-content: start; justify-content: center;
+  justify-items: center;
+  gap: .75rem; padding: 10vh 2rem 2rem; text-align: center; line-height: 1.6; font-size: 15px;
+  color: var(--color-text-soft); background: var(--color-background);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased }
+h1 { margin: 0; font-size: 2rem; line-height: 1.3; font-weight: 500; color: var(--color-heading) }
+p { margin: 0 }
+.btn-primary { display: inline-flex; align-items: center; gap: .4rem; margin-top: .75rem;
+  padding: .5rem 1rem; border-radius: .4rem; font-size: 1rem; background: #1e8e5a; color: #fff;
+  text-decoration: none; white-space: nowrap }
+.btn-primary:hover { background: #187249 }
+svg { width: 16px; height: 16px; flex-shrink: 0 }
+</style>
+</head>
+<body>
+<h1>This short link doesn't exist</h1>
+<p>It was deleted, or the address was mistyped.</p>
+<a class="btn-primary" href="/">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+  </svg>
+  Create a new short link
+</a>
+</body>
+</html>`,
+    {
+      status: 404,
+      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+    }
+  );
+}
+
 export async function onRequestGet(context) {
   const { params, env } = context;
   const code = params.code;
@@ -5,7 +69,7 @@ export async function onRequestGet(context) {
     "SELECT target_url FROM links WHERE short_code = ? AND deleted_at IS NULL"
   ).bind(code).first();
   if (!link) {
-    return Response.json({ error: "Short link not found" }, { status: 404 });
+    return notFoundPage();
   }
   // Counting a click must not delay the redirect, so it runs after the response is sent
   context.waitUntil(

@@ -44,3 +44,5 @@ __screenshots__/
 
 # Agent plans
 .agent_plans/
+# Local UI mockups
+mockups/
