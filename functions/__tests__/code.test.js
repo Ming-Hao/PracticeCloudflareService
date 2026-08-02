@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { withTestDb, createContext } from './helpers.js'
-import { onRequestGet, onRequestDelete } from '../[code].js'
+import { onRequestGet, onRequestHead, onRequestDelete } from '../[code].js'
 
 async function insertLink(db, { short_code, target_url = 'https://example.com', delete_token = 'token-abc', deleted_at = null }) {
   await db
@@ -73,6 +73,49 @@ test('GET /:code — a 404 on a soft-deleted link does not increment clicks', as
     await ctx._settle()
 
     assert.equal(res.status, 404)
+    const link = await getLink(db, 'AAAAAA')
+    assert.equal(link.clicks, 0)
+  })
+})
+
+test('HEAD /:code — existing short code returns 200', async () => {
+  await withTestDb(async (db) => {
+    await insertLink(db, { short_code: 'AAAAAA' })
+
+    const ctx = createContext({ db, method: 'HEAD', params: { code: 'AAAAAA' } })
+    const res = await onRequestHead(ctx)
+
+    assert.equal(res.status, 200)
+  })
+})
+
+test('HEAD /:code — nonexistent short code returns 404', async () => {
+  await withTestDb(async (db) => {
+    const ctx = createContext({ db, method: 'HEAD', params: { code: 'NOPE00' } })
+    const res = await onRequestHead(ctx)
+
+    assert.equal(res.status, 404)
+  })
+})
+
+test('HEAD /:code — soft-deleted short code returns 404', async () => {
+  await withTestDb(async (db) => {
+    await insertLink(db, { short_code: 'AAAAAA', deleted_at: '2026-01-01 00:00:00' })
+
+    const ctx = createContext({ db, method: 'HEAD', params: { code: 'AAAAAA' } })
+    const res = await onRequestHead(ctx)
+
+    assert.equal(res.status, 404)
+  })
+})
+
+test('HEAD /:code — a hit does not increment clicks', async () => {
+  await withTestDb(async (db) => {
+    await insertLink(db, { short_code: 'AAAAAA' })
+
+    const ctx = createContext({ db, method: 'HEAD', params: { code: 'AAAAAA' } })
+    await onRequestHead(ctx)
+
     const link = await getLink(db, 'AAAAAA')
     assert.equal(link.clicks, 0)
   })

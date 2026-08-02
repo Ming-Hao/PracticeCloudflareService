@@ -22,6 +22,20 @@ export async function onRequestGet(context) {
   });
 }
 
+// Lets the frontend check whether a short code is still live before navigating,
+// without counting that check as a click — only onRequestGet does that.
+export async function onRequestHead(context) {
+  const { params, env } = context;
+  const code = params.code;
+  const link = await env.DB.prepare(
+    "SELECT short_code FROM links WHERE short_code = ? AND deleted_at IS NULL"
+  ).bind(code).first();
+  if (!link) {
+    return new Response(null, { status: 404 });
+  }
+  return new Response(null, { status: 200 });
+}
+
 export async function onRequestDelete(context) {
   const { params, env, request } = context;
   const code = params.code;

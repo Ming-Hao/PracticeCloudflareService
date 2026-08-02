@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useHistory, type HistoryEntry, type SavedEntry } from '@/composables/useHistory'
+import { resolveLinkClick } from '@/utils/linkClick'
 import PasswordPromptDialog from './PasswordPromptDialog.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 
@@ -108,14 +109,10 @@ async function onConfirmDelete() {
 
 async function onLinkClick() {
   errorMessage.value = ''
-  // redirect: 'manual' lets us read a 404 response directly, while a real redirect
-  // comes back as an opaque response we can't (and don't need to) inspect.
-  const res = await fetch(shortUrl.value, { redirect: 'manual' })
-  if (res.status === 404) {
+  const result = await resolveLinkClick(shortUrl.value)
+  if (result === 'stale') {
     activeDialog.value = 'confirm-stale'
-    return
   }
-  window.location.href = shortUrl.value
 }
 
 function onConfirmStale() {
