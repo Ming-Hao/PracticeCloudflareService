@@ -109,9 +109,13 @@ async function onConfirmDelete() {
 
 async function onLinkClick() {
   errorMessage.value = ''
-  const result = await resolveLinkClick(shortUrl.value)
-  if (result === 'stale') {
-    activeDialog.value = 'confirm-stale'
+  try {
+    const result = await resolveLinkClick(shortUrl.value)
+    if (result === 'stale') {
+      activeDialog.value = 'confirm-stale'
+    }
+  } catch (err) {
+    errorMessage.value = err instanceof Error ? err.message : 'Failed to open link'
   }
 }
 
