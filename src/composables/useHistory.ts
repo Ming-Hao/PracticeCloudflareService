@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { computed, inject, ref, type InjectionKey } from 'vue'
 import { deriveKey, encrypt, decrypt, PBKDF2_ITERATIONS, SALT_LENGTH } from '../utils/crypto.ts'
 import * as historyDb from '../utils/historyDb.ts'
 
@@ -279,9 +279,22 @@ export function createHistoryStore(deps: HistoryDeps = { ...historyDb, fetch: gl
   }
 }
 
+export type HistoryStore = ReturnType<typeof createHistoryStore>
+
+/**
+ * Lets a test provide its own store to a mounted component, which otherwise has no seam:
+ * components resolve their store through `useHistory()`, not by calling `createHistoryStore`.
+ */
+export const historyStoreKey: InjectionKey<HistoryStore> = Symbol('historyStore')
+
 // Module-level singleton so every component sharing this composable sees the same session data.
 const store = createHistoryStore()
 
-export function useHistory() {
-  return store
+export function useHistory(): HistoryStore {
+  // No provider is the normal case — every real mount falls through to the singleton, so
+  // production behaviour is unchanged. Only tests provide a substitute.
+  // The `?? store` is not redundant despite the type signature: inject() returns undefined,
+  // ignoring its default, when called with neither a component nor an app context. Dropping
+  // it makes any call outside setup() throw on destructuring instead of returning the store.
+  return inject(historyStoreKey, store) ?? store
 }

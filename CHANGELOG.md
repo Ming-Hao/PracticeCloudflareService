@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `useHistory()` now resolves its store through Vue's `inject`, falling back to
+  the existing module singleton when nothing provides one. Components are
+  unchanged and production behaviour is identical; the seam exists so a test can
+  hand a mounted component its own store instead of the shared one.
+
 ## [1.4.1] - 2026-08-02
 
 ### Security
