@@ -1,0 +1,14 @@
+# Short codes live at the root, so blocking them means blocking everything and
+# carving the homepage back out. Allow comes first only for parsers that stop at
+# the first match; conforming ones pick the longest rule, where /$ beats /.
+#
+# The point is to keep short links out of search results, but this is not a guarantee:
+# robots.txt blocks fetching, not indexing, and a URL linked elsewhere can still be
+# listed without ever being fetched. Suppressing that needs noindex, which only works
+# if the crawler is allowed to fetch the page, so the two are mutually exclusive.
+#
+# It also stops crawler hits from inflating the click counter in functions/[code].js,
+# which counts every GET and sends no-store so nothing is served from cache.
+User-agent: *
+Allow: /$
+Disallow: /

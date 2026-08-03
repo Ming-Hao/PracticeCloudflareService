@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A `robots.txt` that blocks crawlers from every path except the homepage, to
+  keep short links out of search results. It also stops automated fetches of a
+  short code from inflating its click count.
+
 ### Changed
 
 - The redirect from `GET /:code` now sends `Referrer-Policy: no-referrer`, so the
