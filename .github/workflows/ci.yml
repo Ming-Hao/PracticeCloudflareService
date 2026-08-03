@@ -30,5 +30,12 @@ jobs:
       - name: Type check
         run: npm run type-check
 
+      # Overlaps with the step above: npm run build is run-p type-check build-only, so
+      # vue-tsc runs a second time here. Type check stays separate so a type error shows
+      # up under its own name, and --build is incremental, so the repeat reads
+      # .tsbuildinfo and costs almost nothing.
+      - name: Build
+        run: npm run build
+
       - name: Run tests
         run: npm test
