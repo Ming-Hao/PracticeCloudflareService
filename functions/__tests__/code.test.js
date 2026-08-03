@@ -206,6 +206,22 @@ test('GET /:code — a successful redirect includes Cache-Control: no-store', as
   })
 })
 
+// Not a header the redirect itself obeys — it retargets the *next* request. Fetch's
+// HTTP-redirect step re-reads the referrer policy from the redirect response, so this is
+// what keeps the target site from seeing which shortener sent the visitor. Dropping it
+// silently restores the default policy and leaks this deployment's origin.
+test('GET /:code — a successful redirect includes Referrer-Policy: no-referrer', async () => {
+  await withTestDb(async (db) => {
+    await insertLink(db, { short_code: 'AAAAAA' })
+
+    const ctx = createContext({ db, params: { code: 'AAAAAA' } })
+    const res = await onRequestGet(ctx)
+    await ctx._settle()
+
+    assert.equal(res.headers.get('Referrer-Policy'), 'no-referrer')
+  })
+})
+
 // Covers both DELETE error branches at once: fixing one would otherwise turn this test green
 // while the other stayed plain text. The 403 branch is the one code review flagged as the
 // future `await res.json()` trap.

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The redirect from `GET /:code` now sends `Referrer-Policy: no-referrer`, so the
+  target site is no longer told which shortener the visitor came from.
+
 - PBKDF2 now derives keys with 600,000 iterations instead of 100,000, matching
   the current OWASP recommendation. Identities created before this change keep
   the iteration count they were stored with, so existing history stays

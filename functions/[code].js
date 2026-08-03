@@ -77,12 +77,19 @@ export async function onRequestGet(context) {
       "UPDATE links SET clicks = clicks + 1 WHERE short_code = ?"
     ).bind(code).run()
   );
-  // Built by hand rather than with Response.redirect(), whose headers are immutable and so
-  // cannot take Cache-Control. Without no-store a cached 302 would keep sending visitors to
-  // the old target after the link is edited or deleted, and stop the click counter entirely.
+  // Built by hand rather than with Response.redirect(), whose headers are immutable — which
+  // rules out both headers below, not just the first. Without no-store a cached 302 would keep
+  // sending visitors to the old target after the link is edited or deleted, and stop the click
+  // counter entirely. no-referrer applies to the request the browser makes next, not to this
+  // response: fetch re-reads the referrer policy from a redirect, so without it the target site
+  // is told which shortener sent the visitor.
   return new Response(null, {
     status: 302,
-    headers: { Location: link.target_url, "Cache-Control": "no-store" },
+    headers: {
+      Location: link.target_url,
+      "Cache-Control": "no-store",
+      "Referrer-Policy": "no-referrer",
+    },
   });
 }
 
