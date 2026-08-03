@@ -1,7 +1,8 @@
-// Iteration count for keys derived from now on. Existing identities store the count
-// they were created with and pass it back in — raising this constant must never make
-// already-stored records underivable, which would look exactly like a wrong password.
-export const PBKDF2_ITERATIONS = 100_000
+// Iteration count for keys derived from now on, per the OWASP recommendation for
+// PBKDF2-HMAC-SHA256. Existing identities store the count they were created with and
+// pass it back in — raising this constant must never make already-stored records
+// underivable, which would look exactly like a wrong password.
+export const PBKDF2_ITERATIONS = 600_000
 export const SALT_LENGTH = 16
 export const IV_LENGTH = 12
 

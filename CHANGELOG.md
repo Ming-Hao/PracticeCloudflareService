@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- PBKDF2 now derives keys with 600,000 iterations instead of 100,000, matching
+  the current OWASP recommendation. Identities created before this change keep
+  the iteration count they were stored with, so existing history stays
+  decryptable with the same password.
+
 ## [1.5.0] - 2026-08-02
 
 ### Added
