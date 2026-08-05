@@ -27,7 +27,9 @@ generation step first. It supplies the Workers globals (`Env`, `EventContext`, `
 binding in `wrangler.toml` — nothing does it automatically, and `npm run wrangler:types:check` is
 the only thing that notices a stale file. That check compares the hash in the file's header
 against what `wrangler.toml` would generate now; it reads none of the declarations below it, and
-none of `functions/`.
+none of `functions/`. CI runs it on every pull request, ahead of the type check, so forgetting it
+locally fails there rather than after deploying. It also covers the less obvious trigger:
+upgrading `wrangler` changes the bundled workerd version and makes the file stale on its own.
 
 Running the full stack locally needs **two processes at once**:
 

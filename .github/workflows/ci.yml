@@ -27,6 +27,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Ahead of the type check because that step's result assumes this file is current:
+      # types generated from an older wrangler.toml still pass, they just describe
+      # bindings that no longer exist. Needs no Cloudflare credentials — it compares the
+      # header hash against what the local config and workerd version produce now.
+      # Telemetry defaults to on: with WRANGLER_SEND_METRICS unset, wrangler falls back
+      # through wrangler.toml and the machine's own setting to "send", and a fresh runner
+      # has neither. Forcing it false below is what keeps this step off the network.
+      - name: Check generated Workers types
+        run: npm run wrangler:types:check
+        env:
+          WRANGLER_SEND_METRICS: false
+
       - name: Type check
         run: npm run type-check
 

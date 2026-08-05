@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- CI verifies that `worker-configuration.d.ts` still matches `wrangler.toml`
+  before type-checking. A stale copy passes the type check by design, so this
+  is the only step that catches a binding change, or a `wrangler` upgrade, that
+  was made without regenerating the file.
+
 ## [1.7.0] - 2026-08-05
 
 ### Changed
