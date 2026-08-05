@@ -107,6 +107,15 @@ export async function onRequestPost(
     if (url.length > MAX_URL_LENGTH) {
       return Response.json({ error: `URL must be at most ${MAX_URL_LENGTH} characters` }, { status: 400 });
     }
+    // Must run on the raw string, before new URL() — the parser removes LF and CR outright and
+    // accepts NUL, so by the time it returns there is nothing left to detect. What goes into
+    // target_url is this raw string, not parsedUrl.href, and those three characters are illegal
+    // in a header value: GET /:code would create its 302 and throw, on every request, for as long
+    // as the row exists. Tab is stripped the same way but is a legal header value, so it stays
+    // allowed rather than widening this into a general "reject what the parser normalized" rule.
+    if (/[\0\n\r]/.test(url)) {
+      return Response.json({ error: "URL must not contain a line break or control character" }, { status: 400 });
+    }
     let parsedUrl;
     try {
       parsedUrl = new URL(url);

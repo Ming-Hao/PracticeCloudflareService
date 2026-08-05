@@ -60,6 +60,23 @@ test('an unparseable string returns 400', async () => {
   })
 })
 
+// new URL() strips LF and CR from its input and accepts NUL, so all three parse as
+// https://example.com/path and clear every check below. target_url keeps the raw string
+// though, and those are the three characters a header value cannot hold: the row would be
+// created and then throw on every GET, leaving a short code that only its delete_token can
+// retire. Tab is stripped the same way but is legal in a header, so it is not rejected here.
+test('URLs holding a character that is illegal in a Location header return 400', async () => {
+  await withTestDb(async (db) => {
+    for (const url of ['https://example.com/pa\nth', 'https://example.com/pa\rth', 'https://example.com/pa\0th']) {
+      const res = await onRequestPost(createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url } }))
+      const body = await res.json<{ error: string }>()
+      assert.equal(res.status, 400, `expected ${JSON.stringify(url)} to be rejected`)
+      assert.match(body.error, /line break or control character/)
+      assert.equal(await countRows(db), 0, `expected ${JSON.stringify(url)} to create no row`)
+    }
+  })
+})
+
 // These two currently pass by coincidence — new URL(123) and new URL(undefined)
 // both throw, landing in the same catch as a genuinely malformed URL string. P0-4
 // will replace that coincidence with an explicit typeof check; this test protects

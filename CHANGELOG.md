@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `POST /api/shorten` rejects a URL containing `\0`, `\n` or `\r`. `new URL()`
+  strips line breaks before parsing, so these passed validation, but `target_url`
+  keeps the raw string and a header value cannot hold them. The link was created
+  and then threw while building its redirect, on every visit.
+
 - `DELETE /:code` no longer accepts `{"delete_token": null}` as authorization for
   a link whose stored token is NULL. `delete_token` was added by `ALTER TABLE` and
   has no `NOT NULL` constraint, so rows created before it hold NULL, and the plain
