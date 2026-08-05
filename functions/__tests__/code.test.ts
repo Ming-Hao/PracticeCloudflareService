@@ -18,7 +18,7 @@ async function insertLink(
     target_url = 'https://example.com',
     delete_token = 'token-abc',
     deleted_at = null,
-  }: { short_code: string; target_url?: string; delete_token?: string; deleted_at?: string | null },
+  }: { short_code: string; target_url?: string; delete_token?: string | null; deleted_at?: string | null },
 ) {
   await db
     .prepare('INSERT INTO links (short_code, target_url, delete_token, deleted_at) VALUES (?, ?, ?, ?)')
@@ -204,6 +204,33 @@ test('DELETE /:code — malformed JSON body returns 400', async () => {
 test('DELETE /:code — missing delete_token field returns 403 (undefined matches no token)', async () => {
   await withTestDb(async (db) => {
     await insertLink(db, { short_code: 'AAAAAA', delete_token: 'correct-token' })
+
+    const ctx = createContext({ db, method: 'DELETE', params: { code: 'AAAAAA' }, body: {} })
+    const res = await onRequestDelete(ctx)
+
+    assert.equal(res.status, 403)
+  })
+})
+
+// `delete_token` was added by ALTER TABLE, so every row predating it holds NULL, and the column
+// has no NOT NULL constraint to stop more appearing. A plain `!==` reads those rows as null and
+// matches a request that sends null, which is why the handler tests the type before comparing.
+test('DELETE /:code — row with a NULL delete_token rejects a null token: 403 and deleted_at stays null', async () => {
+  await withTestDb(async (db) => {
+    await insertLink(db, { short_code: 'AAAAAA', delete_token: null })
+
+    const ctx = createContext({ db, method: 'DELETE', params: { code: 'AAAAAA' }, body: { delete_token: null } })
+    const res = await onRequestDelete(ctx)
+
+    assert.equal(res.status, 403)
+    const link = await getLink(db, 'AAAAAA')
+    assert.equal(link.deleted_at, null)
+  })
+})
+
+test('DELETE /:code — row with a NULL delete_token rejects a missing token: 403', async () => {
+  await withTestDb(async (db) => {
+    await insertLink(db, { short_code: 'AAAAAA', delete_token: null })
 
     const ctx = createContext({ db, method: 'DELETE', params: { code: 'AAAAAA' }, body: {} })
     const res = await onRequestDelete(ctx)

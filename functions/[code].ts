@@ -131,12 +131,16 @@ export async function onRequestDelete(
 
   const link = await env.DB.prepare(
     "SELECT delete_token, deleted_at FROM links WHERE short_code = ?"
-  ).bind(code).first<{ delete_token: string; deleted_at: string | null }>();
+  ).bind(code).first<{ delete_token: string | null; deleted_at: string | null }>();
 
   if (!link) {
     return Response.json({ error: "Short link not found" }, { status: 404 });
   }
-  if (link.delete_token !== deleteToken) {
+  // The typeof guard is not redundant with the comparison: `delete_token` arrived by ALTER TABLE
+  // and carries no NOT NULL constraint, so rows predating it hold NULL, which `!==` reads as null
+  // and a request body of `{"delete_token": null}` matches — deleting someone else's link without
+  // the token. Both sides have to be a string before comparing them means anything.
+  if (typeof deleteToken !== "string" || link.delete_token !== deleteToken) {
     return Response.json({ error: "Delete token mismatch" }, { status: 403 });
   }
   if (link.deleted_at) {

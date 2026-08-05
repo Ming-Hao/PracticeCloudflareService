@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `DELETE /:code` no longer accepts `{"delete_token": null}` as authorization for
+  a link whose stored token is NULL. `delete_token` was added by `ALTER TABLE` and
+  has no `NOT NULL` constraint, so rows created before it hold NULL, and the plain
+  `!==` comparison read both sides as null and soft-deleted the link. The handler
+  now requires the submitted token to be a string before comparing.
+
 ### Added
 
 - CI verifies that `worker-configuration.d.ts` still matches `wrangler.toml`
