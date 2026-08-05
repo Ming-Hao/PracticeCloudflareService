@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { resolveLinkClick } from '../linkClick.ts'
 
 // Whether the probe (HEAD) and navigate (GET) themselves count as a click is the
-// server's concern, covered by functions/__tests__/code.test.js — HEAD leaves `clicks`
+// server's concern, covered by functions/__tests__/code.test.ts — HEAD leaves `clicks`
 // untouched, GET increments it. What matters here is that resolveLinkClick calls
 // navigate at most once, and only when the probe says the link is live.
 

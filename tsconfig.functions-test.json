@@ -1,0 +1,30 @@
+// TSConfig for the Pages Functions tests. Same Workers globals as tsconfig.functions.json,
+// plus the Node globals the test runner needs. It has no `exclude`: copying the product
+// project's `exclude: ["functions/__tests__/*"]` would drop the only directory this project
+// checks, leaving a d.ts-only project that passes without checking anything.
+{
+  "include": ["functions/__tests__/*", "worker-configuration.d.ts"],
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["esnext"],
+
+    // node:test / node:assert / node:fs. miniflare's own types come with the package
+    // through import resolution and do not depend on this array.
+    "types": ["node"],
+
+    // `import assert from 'node:assert/strict'` — @types/node declares it with `export =`.
+    "esModuleInterop": true,
+
+    // Tests import product code with an explicit .ts extension, matching src/**/__tests__.
+    "allowImportingTsExtensions": true,
+
+    "strict": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "noEmit": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.functions-test.tsbuildinfo"
+  }
+}

@@ -19,6 +19,17 @@ The app itself is a simple URL shortener — paste a long URL and get back a sho
    `[[d1_databases]]` block of `wrangler.toml` comes from there. The snippet's `binding` defaults to
    the database name; here it is `DB`, the name the Functions read as `env.DB`.
 
+   The `Env` type the Functions are checked against is generated from these bindings, so any change
+   to them needs a regenerated `worker-configuration.d.ts`:
+
+   ```sh
+   npm run wrangler:types        # regenerate
+   npm run wrangler:types:check  # fail if it is out of date
+   ```
+
+   Skipping this leaves `env.DB` typed under the old binding name: type-checking still passes and
+   the failure only shows up at runtime.
+
 3. **Apply the schema to the remote database.** Run the contents of `schema.sql` in the dashboard's
    D1 Console, or from the CLI:
 
@@ -80,8 +91,8 @@ runtime itself — nothing in this repo configures them explicitly:
 
 | File | Route |
 | --- | --- |
-| `functions/[code].js` | `/:code` |
-| `functions/api/shorten.js` | `/api/shorten` |
+| `functions/[code].ts` | `/:code` |
+| `functions/api/shorten.ts` | `/api/shorten` |
 
 | Export name | HTTP method |
 | --- | --- |
@@ -91,7 +102,7 @@ runtime itself — nothing in this repo configures them explicitly:
 | `onRequest` | any method (catch-all) |
 
 Static routes (like `/api/shorten`) take priority over dynamic ones (like `/:code`), so a request
-to `/api/shorten` is never mistaken for `[code].js` with `code = "api"`.
+to `/api/shorten` is never mistaken for `[code].ts` with `code = "api"`.
 
 ### Frontend calls → which handler runs
 
@@ -101,8 +112,8 @@ above.
 
 | Frontend call | URL + method | Matches |
 | --- | --- | --- |
-| `onSubmit()` ([HomeView.vue](src/views/HomeView.vue)) | `fetch('/api/shorten', { method: 'POST' })` | `functions/api/shorten.js` → `onRequestPost` |
-| `deleteLinkOnServer()` ([useHistory.ts](src/composables/useHistory.ts)) | `` fetch(`/${shortCode}`, { method: 'DELETE' }) `` — e.g. `shortCode = "abc123"` actually requests `fetch('/abc123', { method: 'DELETE' })` | `functions/[code].js` → `onRequestDelete` |
+| `onSubmit()` ([HomeView.vue](src/views/HomeView.vue)) | `fetch('/api/shorten', { method: 'POST' })` | `functions/api/shorten.ts` → `onRequestPost` |
+| `deleteLinkOnServer()` ([useHistory.ts](src/composables/useHistory.ts)) | `` fetch(`/${shortCode}`, { method: 'DELETE' }) `` — e.g. `shortCode = "abc123"` actually requests `fetch('/abc123', { method: 'DELETE' })` | `functions/[code].ts` → `onRequestDelete` |
 
 ### Where the dynamic segment ends up: `context.params`
 
@@ -110,11 +121,13 @@ When a request matches a dynamic route like `/:code`, Cloudflare parses the matc
 of the URL and passes it into the handler via `context.params` — the frontend never sends this
 separately, it's extracted from the URL itself:
 
-```js
-// functions/[code].js
-export async function onRequestDelete(context) {
+```ts
+// functions/[code].ts
+export async function onRequestDelete(
+  context: EventContext<Env, "code", unknown>
+): Promise<Response> {
   const { params, env, request } = context;
-  const code = params.code; // "abc123", parsed from the request URL /abc123
+  const code = params.code as string; // "abc123", parsed from the request URL /abc123
   // ...
 }
 ```
@@ -122,6 +135,11 @@ export async function onRequestDelete(context) {
 `context` is the object Cloudflare automatically builds for every request; besides `params`, it
 also carries `request` (the raw `Request`, e.g. for reading the JSON body) and `env` (bindings
 such as `env.DB`).
+
+`params.code` is typed `string | string[]` because the same type covers catch-all routes, which
+can match several segments. `[code]` matches exactly one, so the array form never occurs here and
+`as string` says so. `EventContext` and `Env` are global types — no import is needed, they come
+from the generated `worker-configuration.d.ts` (see the setup section above).
 
 ## Redirect flow
 

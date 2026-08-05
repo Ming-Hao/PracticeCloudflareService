@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
-    "test": "node --test"
+    "test": "node --test",
+    "wrangler:types": "wrangler types",
+    "wrangler:types:check": "wrangler types --check"
   },
   "dependencies": {
     "vue": "^3.5.40",

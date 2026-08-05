@@ -62,12 +62,17 @@ svg { width: 16px; height: 16px; flex-shrink: 0 }
   );
 }
 
-export async function onRequestGet(context) {
+// Params<'code'> types params.code as `string | string[]` because that is what a catch-all
+// route would produce. `[code]` is a single dynamic segment, so the array form never occurs
+// here — the assertion below states that, it does not check it.
+export async function onRequestGet(
+  context: EventContext<Env, "code", unknown>
+): Promise<Response> {
   const { params, env } = context;
-  const code = params.code;
+  const code = params.code as string;
   const link = await env.DB.prepare(
     "SELECT target_url FROM links WHERE short_code = ? AND deleted_at IS NULL"
-  ).bind(code).first();
+  ).bind(code).first<{ target_url: string }>();
   if (!link) {
     return notFoundPage();
   }
@@ -95,32 +100,38 @@ export async function onRequestGet(context) {
 
 // Lets the frontend check whether a short code is still live before navigating,
 // without counting that check as a click — only onRequestGet does that.
-export async function onRequestHead(context) {
+export async function onRequestHead(
+  context: EventContext<Env, "code", unknown>
+): Promise<Response> {
   const { params, env } = context;
-  const code = params.code;
+  const code = params.code as string;
   const link = await env.DB.prepare(
     "SELECT short_code FROM links WHERE short_code = ? AND deleted_at IS NULL"
-  ).bind(code).first();
+  ).bind(code).first<{ short_code: string }>();
   if (!link) {
     return new Response(null, { status: 404 });
   }
   return new Response(null, { status: 200 });
 }
 
-export async function onRequestDelete(context) {
+export async function onRequestDelete(
+  context: EventContext<Env, "code", unknown>
+): Promise<Response> {
   const { params, env, request } = context;
-  const code = params.code;
+  const code = params.code as string;
 
-  let deleteToken;
+  let deleteToken: unknown;
   try {
-    ({ delete_token: deleteToken } = await request.json());
+    // The type argument describes the body this handler hopes for; the request can still send
+    // anything, which is why the comparison below stays a plain !== against whatever arrived.
+    ({ delete_token: deleteToken } = await request.json<{ delete_token?: unknown }>());
   } catch {
     return Response.json({ error: "Invalid request body" }, { status: 400 });
   }
 
   const link = await env.DB.prepare(
     "SELECT delete_token, deleted_at FROM links WHERE short_code = ?"
-  ).bind(code).first();
+  ).bind(code).first<{ delete_token: string; deleted_at: string | null }>();
 
   if (!link) {
     return Response.json({ error: "Short link not found" }, { status: 404 });

@@ -1,0 +1,35 @@
+// TSConfig for the Pages Functions handlers, which run on workerd — not in a browser
+// and not in Node. It deliberately does not extend @vue/tsconfig: the DOM lib defines
+// Response/Request differently from the Workers runtime, and checking this code against
+// the DOM contract would validate the wrong API.
+{
+  "include": ["functions/**/*", "worker-configuration.d.ts"],
+  "exclude": ["functions/__tests__/*"],
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+
+    // No DOM. Every Workers global (Response, D1Database, EventContext, Env) comes from
+    // worker-configuration.d.ts, pulled in through `include` above.
+    "lib": ["esnext"],
+
+    // Empty so no @types/* package is auto-loaded — @types/node would let this code
+    // reference `process` and still type-check while failing on the edge.
+    "types": [],
+
+    "strict": true,
+    "skipLibCheck": true,
+
+    // Type-only imports must be marked `type`, so Node's type stripping erases them correctly.
+    "verbatimModuleSyntax": true,
+
+    // Rejects syntax type stripping cannot erase (enum, parameter properties, namespace).
+    "erasableSyntaxOnly": true,
+
+    // noUncheckedIndexedAccess is intentionally NOT enabled here, unlike tsconfig.app.json —
+    // see the Gotchas entry in CLAUDE.md.
+    "noEmit": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.functions.tsbuildinfo"
+  }
+}

@@ -1,20 +1,32 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { withTestDb, createContext } from './helpers.js'
-import { onRequestPost, generateCode, isPrivateHostname } from '../api/shorten.js'
+import { withTestDb, createContext } from './helpers.ts'
+import { onRequestPost, generateCode, isPrivateHostname } from '../api/shorten.ts'
 
 const SHORTEN_URL = 'https://example.test/api/shorten'
 
-async function getLink(db, short_code) {
-  return db.prepare('SELECT * FROM links WHERE short_code = ?').bind(short_code).first()
+type LinkRow = {
+  short_code: string
+  target_url: string
+  delete_token: string
+  created_at: string
+  deleted_at: string | null
+  clicks: number
 }
 
-async function insertLink(db, short_code, target_url = 'https://example.com') {
+// Declared as always returning a row: every caller looks up a code the handler just reported
+// creating, so a null here is a broken test rather than a case to handle.
+async function getLink(db: D1Database, short_code: string) {
+  return (await db.prepare('SELECT * FROM links WHERE short_code = ?').bind(short_code).first<LinkRow>())!
+}
+
+async function insertLink(db: D1Database, short_code: string, target_url = 'https://example.com') {
   await db.prepare('INSERT INTO links (short_code, target_url, delete_token) VALUES (?, ?, ?)').bind(short_code, target_url, 'x').run()
 }
 
-async function countRows(db) {
-  const { count } = await db.prepare('SELECT COUNT(*) as count FROM links').first()
+async function countRows(db: D1Database) {
+  // An aggregate always produces exactly one row, so first() is never null here.
+  const { count } = (await db.prepare('SELECT COUNT(*) as count FROM links').first<{ count: number }>())!
   return count
 }
 
@@ -76,7 +88,7 @@ test('a malformed JSON body returns 400, not 500', async () => {
 test('the response created_at exactly matches the value stored in the database', async () => {
   await withTestDb(async (db) => {
     const res = await onRequestPost(createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url: 'https://example.com' } }))
-    const { short_code, created_at } = await res.json()
+    const { short_code, created_at } = await res.json<{ short_code: string; created_at: string }>()
     const link = await getLink(db, short_code)
     assert.equal(created_at, link.created_at)
   })
@@ -85,7 +97,7 @@ test('the response created_at exactly matches the value stored in the database',
 test('the response created_at is ISO 8601 with an explicit Z (UTC) marker', async () => {
   await withTestDb(async (db) => {
     const res = await onRequestPost(createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url: 'https://example.com' } }))
-    const { created_at } = await res.json()
+    const { created_at } = await res.json<{ created_at: string }>()
     assert.match(created_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
   })
 })
@@ -95,7 +107,7 @@ test('the response created_at parses (as UTC) to a time close to now', async () 
     const before = Date.now()
     const res = await onRequestPost(createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url: 'https://example.com' } }))
     const after = Date.now()
-    const { created_at } = await res.json()
+    const { created_at } = await res.json<{ created_at: string }>()
     const parsed = new Date(created_at).getTime()
     assert.ok(parsed >= before - 1000 && parsed <= after + 1000, `expected ${parsed} to be within a second of [${before}, ${after}]`)
   })
@@ -104,7 +116,7 @@ test('the response created_at parses (as UTC) to a time close to now', async () 
 test('the response short_code exists in the database with the matching target_url', async () => {
   await withTestDb(async (db) => {
     const res = await onRequestPost(createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url: 'https://example.com/page' } }))
-    const { short_code, target_url } = await res.json()
+    const { short_code, target_url } = await res.json<{ short_code: string; target_url: string }>()
     const link = await getLink(db, short_code)
     assert.ok(link)
     assert.equal(target_url, 'https://example.com/page')
@@ -115,7 +127,7 @@ test('the response short_code exists in the database with the matching target_ur
 test('the response delete_token matches the value stored in the database', async () => {
   await withTestDb(async (db) => {
     const res = await onRequestPost(createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url: 'https://example.com' } }))
-    const { short_code, delete_token } = await res.json()
+    const { short_code, delete_token } = await res.json<{ short_code: string; delete_token: string }>()
     const link = await getLink(db, short_code)
     assert.equal(delete_token, link.delete_token)
   })
@@ -125,8 +137,8 @@ test('two consecutive requests get different delete_tokens', async () => {
   await withTestDb(async (db) => {
     const resA = await onRequestPost(createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url: 'https://example.com/a' } }))
     const resB = await onRequestPost(createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url: 'https://example.com/b' } }))
-    const { delete_token: tokenA } = await resA.json()
-    const { delete_token: tokenB } = await resB.json()
+    const { delete_token: tokenA } = await resA.json<{ delete_token: string }>()
+    const { delete_token: tokenB } = await resB.json<{ delete_token: string }>()
     assert.notEqual(tokenA, tokenB)
   })
 })
@@ -134,7 +146,7 @@ test('two consecutive requests get different delete_tokens', async () => {
 test('a newly created row has deleted_at = null and clicks = 0', async () => {
   await withTestDb(async (db) => {
     const res = await onRequestPost(createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url: 'https://example.com' } }))
-    const { short_code } = await res.json()
+    const { short_code } = await res.json<{ short_code: string }>()
     const link = await getLink(db, short_code)
     assert.equal(link.deleted_at, null)
     assert.equal(link.clicks, 0)
@@ -170,7 +182,7 @@ test('a colliding code from the generator is retried until a free one is found',
     }
 
     const res = await onRequestPost(createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url: 'https://example.com' } }), { codeGenerator })
-    const body = await res.json()
+    const body = await res.json<{ short_code: string }>()
 
     assert.equal(res.status, 200)
     assert.equal(body.short_code, 'FRESH1')
@@ -180,7 +192,7 @@ test('a colliding code from the generator is retried until a free one is found',
 // Verifies the retry loop is scoped to UNIQUE-constraint collisions only: a disk
 // error must abort after the first attempt rather than burning all five.
 test('a non-UNIQUE DB error is not retried and surfaces as 500', async (t) => {
-  // The SQLITE_IOERR below is manufactured by this test, and shorten.js logging it on the
+  // The SQLITE_IOERR below is manufactured by this test, and shorten.ts logging it on the
   // 500 path is the behaviour we want in production. Silence it here only so the stack
   // trace does not appear in test output and read as a genuine failure. node:test restores
   // the mock when this test ends, so an unexpected console.error elsewhere is still visible.
@@ -191,6 +203,9 @@ test('a non-UNIQUE DB error is not retried and surfaces as 500', async (t) => {
     generatorCalls++
     return 'ANYCODE'
   }
+  // Only the prepare().bind().run() path the handler takes is implemented, so it cannot satisfy
+  // D1Database structurally — the assertion keeps createContext's contract honest for every
+  // other caller instead of widening it to accommodate this one stub.
   const fakeDb = {
     prepare() {
       return {
@@ -202,7 +217,7 @@ test('a non-UNIQUE DB error is not retried and surfaces as 500', async (t) => {
         },
       }
     },
-  }
+  } as unknown as D1Database
 
   const res = await onRequestPost(createContext({ db: fakeDb, method: 'POST', url: SHORTEN_URL, body: { url: 'https://example.com' } }), {
     codeGenerator,
@@ -289,7 +304,7 @@ test('POST /api/shorten rejects URLs whose normalized hostname points at a priva
     ]
     for (const url of urls) {
       const res = await onRequestPost(createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url } }))
-      const body = await res.json()
+      const body = await res.json<{ error: string }>()
       assert.equal(res.status, 400, `expected ${url} to be rejected`)
       assert.match(body.error, /private or local address/)
     }

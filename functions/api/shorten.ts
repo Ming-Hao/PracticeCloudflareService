@@ -26,7 +26,7 @@ export function generateCode(length = 8) {
 
 // dotted-quad only: new URL() has already folded octal/hex/integer/IPv4-mapped forms
 // into this shape before the hostname reaches here, so no other IPv4 notation is handled.
-function isPrivateIPv4(hostname) {
+function isPrivateIPv4(hostname: string) {
   if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) return false;
   const [a, b] = hostname.split(".").map(Number);
   if (a === 0) return true; // 0.0.0.0/8
@@ -40,13 +40,13 @@ function isPrivateIPv4(hostname) {
 }
 
 // A 16-bit IPv6 group split into the two octets it represents once reassembled as IPv4.
-function hexGroupToOctetPair(group) {
+function hexGroupToOctetPair(group: string) {
   const value = parseInt(group, 16);
   return [(value >> 8) & 0xff, value & 0xff];
 }
 
 // Only reached for bracketed literals (hostname.startsWith("[")) — see isPrivateHostname.
-function isPrivateIPv6(hostname) {
+function isPrivateIPv6(hostname: string) {
   const inner = hostname.slice(1, -1);
   if (inner === "::1" || inner === "::") return true; // loopback / unspecified, must be exact matches
   if (inner.startsWith("::ffff:")) {
@@ -62,10 +62,10 @@ function isPrivateIPv6(hostname) {
   return false;
 }
 
-// hostname must already be normalized by `new URL()` (see functions/__tests__/shorten.test.js
+// hostname must already be normalized by `new URL()` (see functions/__tests__/shorten.test.ts
 // for the forms this collapses). DNS is out of scope: a hostname that only resolves to a
 // private address at request time — not in its literal form — is not caught here.
-export function isPrivateHostname(hostname) {
+export function isPrivateHostname(hostname: string) {
   const name = hostname.endsWith(".") ? hostname.slice(0, -1) : hostname;
   if (
     name === "localhost" ||
@@ -82,12 +82,17 @@ export function isPrivateHostname(hostname) {
   return isPrivateIPv4(hostname);
 }
 
-export async function onRequestPost(context, { codeGenerator = generateCode } = {}) {
+export async function onRequestPost(
+  context: EventContext<Env, string, unknown>,
+  { codeGenerator = generateCode }: { codeGenerator?: () => string } = {}
+): Promise<Response> {
   const { request, env } = context;
 
-  let url;
+  let url: unknown;
   try {
-    ({ url } = await request.json());
+    // A type argument here would only be a claim about the body: the typeof check below is
+    // what actually establishes that `url` is a string, so it stays `unknown` until then.
+    ({ url } = await request.json<{ url?: unknown }>());
   } catch {
     return Response.json({ error: "Invalid request body" }, { status: 400 });
   }
@@ -133,7 +138,7 @@ export async function onRequestPost(context, { codeGenerator = generateCode } = 
     // Claim a short code by inserting it and letting the UNIQUE constraint report
     // collisions. Checking with a SELECT first would be two round-trips and still
     // racy: another request can insert the same code between the check and the insert.
-    let code = null;
+    let code: string | null = null;
     for (let attempt = 0; attempt < 5; attempt++) {
       const candidate = codeGenerator();
       try {
@@ -146,7 +151,9 @@ export async function onRequestPost(context, { codeGenerator = generateCode } = 
         // Only a collision is worth retrying; any other DB fault must surface as a 500.
         // String(...) because a thrown non-Error has no .message, and .test(undefined)
         // would silently match against the literal string "undefined".
-        if (!/UNIQUE constraint failed/i.test(String(err?.message ?? ""))) {
+        // Not `err instanceof Error`: a thrown non-Error carrying a UNIQUE message would stop
+        // being retried, which is a behaviour change rather than a typing one.
+        if (!/UNIQUE constraint failed/i.test(String((err as { message?: unknown } | null)?.message ?? ""))) {
           throw err;
         }
       }

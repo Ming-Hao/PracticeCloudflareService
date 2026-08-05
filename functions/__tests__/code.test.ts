@@ -1,17 +1,35 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { withTestDb, createContext } from './helpers.js'
-import { onRequestGet, onRequestHead, onRequestDelete } from '../[code].js'
+import { withTestDb, createContext } from './helpers.ts'
+import { onRequestGet, onRequestHead, onRequestDelete } from '../[code].ts'
 
-async function insertLink(db, { short_code, target_url = 'https://example.com', delete_token = 'token-abc', deleted_at = null }) {
+type LinkRow = {
+  short_code: string
+  target_url: string
+  delete_token: string
+  deleted_at: string | null
+  clicks: number
+}
+
+async function insertLink(
+  db: D1Database,
+  {
+    short_code,
+    target_url = 'https://example.com',
+    delete_token = 'token-abc',
+    deleted_at = null,
+  }: { short_code: string; target_url?: string; delete_token?: string; deleted_at?: string | null },
+) {
   await db
     .prepare('INSERT INTO links (short_code, target_url, delete_token, deleted_at) VALUES (?, ?, ?, ?)')
     .bind(short_code, target_url, delete_token, deleted_at)
     .run()
 }
 
-async function getLink(db, short_code) {
-  return db.prepare('SELECT * FROM links WHERE short_code = ?').bind(short_code).first()
+// Declared as always returning a row: every caller has just inserted the code it asks for, so a
+// null here is a broken test rather than a case to handle, and it would already throw today.
+async function getLink(db: D1Database, short_code: string) {
+  return (await db.prepare('SELECT * FROM links WHERE short_code = ?').bind(short_code).first<LinkRow>())!
 }
 
 test('GET /:code — existing short code redirects with 302 to target_url', async () => {
@@ -241,7 +259,7 @@ test('DELETE /:code — error responses are JSON, not plain text', async () => {
     for (const { label, ctx } of cases) {
       const res = await onRequestDelete(ctx)
       assert.match(res.headers.get('Content-Type') ?? '', /application\/json/, `${label} should respond with JSON`)
-      const body = await res.json()
+      const body = await res.json<{ error: string }>()
       assert.equal(typeof body.error, 'string', `${label} should carry an error string`)
     }
   })
