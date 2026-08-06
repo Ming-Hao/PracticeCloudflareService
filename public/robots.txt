@@ -7,7 +7,7 @@
 # listed without ever being fetched. Suppressing that needs noindex, which only works
 # if the crawler is allowed to fetch the page, so the two are mutually exclusive.
 #
-# It also stops crawler hits from inflating the click counter in functions/[code].js,
+# It also stops crawler hits from inflating the click counter in functions/[code].ts,
 # which counts every GET and sends no-store so nothing is served from cache.
 User-agent: *
 Allow: /$
