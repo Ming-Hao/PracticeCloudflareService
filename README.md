@@ -97,12 +97,22 @@ runtime itself — nothing in this repo configures them explicitly:
 | Export name | HTTP method |
 | --- | --- |
 | `onRequestGet` | GET |
+| `onRequestHead` | HEAD |
 | `onRequestPost` | POST |
 | `onRequestDelete` | DELETE |
 | `onRequest` | any method (catch-all) |
 
 Static routes (like `/api/shorten`) take priority over dynamic ones (like `/:code`), so a request
 to `/api/shorten` is never mistaken for `[code].ts` with `code = "api"`.
+
+`onRequestHead` is here for a reason worth knowing. The history list checks whether a short link
+is still live before navigating to it, and that probe originally used `GET` — the same request the
+browser was about to make anyway, so every click was counted twice. The fix
+([`7e13057`](https://github.com/Ming-Hao/PracticeCloudflareService/commit/7e13057), *stop counting
+a link click twice*) split the probe onto `HEAD`, which `functions/[code].ts` answers without
+touching the counter. It also answers **200**, not the `302` that `GET` returns — the probe follows
+redirects by default, and a `302` would send it cross-origin to the target site, where it fails
+CORS.
 
 ### Frontend calls → which handler runs
 
@@ -114,6 +124,7 @@ above.
 | --- | --- | --- |
 | `onSubmit()` ([HomeView.vue](src/views/HomeView.vue)) | `fetch('/api/shorten', { method: 'POST' })` | `functions/api/shorten.ts` → `onRequestPost` |
 | `deleteLinkOnServer()` ([useHistory.ts](src/composables/useHistory.ts)) | `` fetch(`/${shortCode}`, { method: 'DELETE' }) `` — e.g. `shortCode = "abc123"` actually requests `fetch('/abc123', { method: 'DELETE' })` | `functions/[code].ts` → `onRequestDelete` |
+| `resolveLinkClick()` ([linkClick.ts](src/utils/linkClick.ts)), called from `onLinkClick()` in [HistoryItem.vue](src/components/history/HistoryItem.vue) | `fetch(shortUrl, { method: 'HEAD' })` | `functions/[code].ts` → `onRequestHead` |
 
 ### Where the dynamic segment ends up: `context.params`
 
@@ -177,9 +188,20 @@ flowchart TD
 
 ### 2. Visiting a short link
 
+Two ways in. A visitor following the short link from anywhere goes straight to `GET`. A click
+inside this app's own history list probes with `HEAD` first, so a link someone else already
+deleted is dropped locally instead of navigating to a 404:
+
 ```mermaid
 flowchart TD
-    E[User visits short link<br/>GET /:code<br/><i>→ handled by onRequestGet</i>] --> F[(D1: SELECT target_url<br/>WHERE short_code = code)]
+    A[Visitor opens the short link] --> D[GET /:code<br/><i>→ handled by onRequestGet</i>]
+    B[User clicks an entry in the history list] --> C[HEAD /:code<br/><i>→ handled by onRequestHead</i>]
+    C -->|404: already deleted| X[Remove the stale local copy,<br/>do not navigate]
+    C -->|200: still live| D
+    D --> F[(D1: SELECT target_url<br/>WHERE short_code = code)]
     F --> G[Server returns 302<br/>Location: target_url]
     G --> H[Browser auto-requests<br/>target_url]
 ```
+
+Only the `GET` branch increments `clicks` — that split is what
+[`7e13057`](https://github.com/Ming-Hao/PracticeCloudflareService/commit/7e13057) fixed.

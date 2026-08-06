@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The `GET /:code` 404 page sends `X-Content-Type-Options: nosniff` and
+  `X-Frame-Options: DENY`. `public/_headers` applies to static responses only, so
+  a page built inside a Function inherits nothing from it and was serving no
+  security headers at all.
+
+### Changed
+
+- README documents `onRequestHead`: the export table lists it, the frontend-call
+  table carries the probe, and the "visiting a short link" flowchart shows the
+  `HEAD` branch. It also records why the probe exists — the earlier `GET` probe
+  counted every click twice.
+
 ## [1.7.1] - 2026-08-05
 
 ### Fixed
