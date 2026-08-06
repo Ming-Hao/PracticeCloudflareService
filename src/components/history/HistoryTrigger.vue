@@ -47,8 +47,8 @@ const { badgeCount } = useHistory()
 
 .history-trigger:hover,
 .history-trigger.active {
-  border-color: #1e8e5a;
-  color: #2ecc71;
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 .history-trigger-icon {
@@ -65,7 +65,7 @@ const { badgeCount } = useHistory()
   height: 1.25rem;
   padding: 0 0.35rem;
   border-radius: 999px;
-  background: #1e8e5a;
+  background: var(--color-accent-surface);
   color: #fff;
   font-size: 0.75rem;
   line-height: 1;

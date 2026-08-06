@@ -12,13 +12,13 @@
   border: none;
   border-radius: 0.4rem;
   font-size: 1rem;
-  background: #1e8e5a;
+  background: var(--color-accent-surface);
   color: #fff;
   cursor: pointer;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #187249;
+  background: var(--color-accent-surface-hover);
 }
 
 .btn-primary:disabled {
@@ -46,26 +46,26 @@
 }
 
 .btn-secondary:hover .btn-icon {
-  color: #2ecc71;
+  color: var(--color-accent);
 }
 
 .btn-secondary.btn-danger:hover {
-  background: rgba(231, 76, 60, 0.1);
-  border-color: rgba(231, 76, 60, 0.5);
+  background: var(--color-danger-wash);
+  border-color: var(--color-danger-wash-border);
 }
 
 .btn-secondary.btn-danger:hover .btn-icon {
-  color: #e74c3c;
+  color: var(--color-danger);
 }
 
 /* Solid destructive variant for confirm buttons (e.g. "Delete" in ConfirmDialog), as opposed to
    .btn-secondary.btn-danger's hover-only red wash used for dismiss/leave actions. */
 .btn-primary.btn-danger {
-  background: #c0392b;
+  background: var(--color-danger-surface);
 }
 
 .btn-primary.btn-danger:hover {
-  background: #a5311f;
+  background: var(--color-danger-surface-hover);
 }
 
 .btn-primary:focus,

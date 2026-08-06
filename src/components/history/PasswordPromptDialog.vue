@@ -107,8 +107,7 @@ function onSubmit() {
 .password-hint {
   margin: 0.6rem 0 0;
   font-size: 0.85rem;
-  color: var(--color-text);
-  opacity: 0.7;
+  color: var(--color-text-muted);
 }
 
 .password-hint + .password-hint {

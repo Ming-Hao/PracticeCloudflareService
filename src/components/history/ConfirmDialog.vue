@@ -88,13 +88,12 @@ function onConfirm() {
 }
 
 .confirm-dialog.danger .confirm-title {
-  color: #e74c3c;
+  color: var(--color-danger);
 }
 
 .confirm-message {
   margin: 0 0 1.25rem;
-  color: var(--color-text);
-  opacity: 0.85;
+  color: var(--color-text-muted);
 }
 
 .confirm-actions {

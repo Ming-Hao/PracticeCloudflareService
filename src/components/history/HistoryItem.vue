@@ -289,7 +289,7 @@ async function copyShortUrl() {
 }
 
 .history-item-code {
-  color: #2ecc71;
+  color: var(--color-accent);
   font-weight: 600;
   text-decoration: none;
   word-break: break-all;
@@ -319,13 +319,12 @@ async function copyShortUrl() {
 }
 
 .copy-btn:hover {
-  color: #2ecc71;
+  color: var(--color-accent);
 }
 
 .history-item-target {
   font-size: 0.85rem;
-  color: var(--color-text);
-  opacity: 0.7;
+  color: var(--color-text-muted);
   word-break: break-all;
 }
 
@@ -337,6 +336,6 @@ async function copyShortUrl() {
 .history-item-error {
   margin: 0;
   font-size: 0.85rem;
-  color: #c0392b;
+  color: var(--color-danger);
 }
 </style>

@@ -15,17 +15,7 @@
   flex-direction: column;
 }
 
-a,
-.green {
-  text-decoration: none;
-  color: hsla(160, 100%, 37%, 1);
-  transition: 0.4s;
-  padding: 3px;
-}
-
-@media (hover: hover) {
-  a:hover {
-    background-color: hsla(160, 100%, 37%, 0.2);
-  }
-}
+/* No global `a` rule on purpose. The Vue starter's set a colour every link here
+   already overrode, so all it still delivered was a stray 3px padding and a green
+   hover wash. Links style themselves. */
 

@@ -17,15 +17,14 @@ function notFoundPage() {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#181818">
 <meta name="robots" content="noindex">
 <title>Link not found</title>
 <style>
 :root {
-  color-scheme: light dark;
-  --color-background: #fff; --color-heading: #2c3e50; --color-text-soft: rgba(60,60,60,.66);
-}
-@media (prefers-color-scheme: dark) {
-  :root { --color-background: #181818; --color-heading: #fff; --color-text-soft: rgba(235,235,235,.64) }
+  color-scheme: dark;
+  --color-background: #181818; --color-heading: #fff; --color-text-soft: rgba(235,235,235,.64);
 }
 body { margin: 0; min-height: 100vh; display: grid; align-content: start; justify-content: center;
   justify-items: center;
@@ -36,9 +35,9 @@ body { margin: 0; min-height: 100vh; display: grid; align-content: start; justif
 h1 { margin: 0; font-size: 2rem; line-height: 1.3; font-weight: 500; color: var(--color-heading) }
 p { margin: 0 }
 .btn-primary { display: inline-flex; align-items: center; gap: .4rem; margin-top: .75rem;
-  padding: .5rem 1rem; border-radius: .4rem; font-size: 1rem; background: #1e8e5a; color: #fff;
+  padding: .5rem 1rem; border-radius: .4rem; font-size: 1rem; background: #1c8555; color: #fff;
   text-decoration: none; white-space: nowrap }
-.btn-primary:hover { background: #187249 }
+.btn-primary:hover { background: #19794c }
 svg { width: 16px; height: 16px; flex-shrink: 0 }
 </style>
 </head>

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fifteen places failed WCAG 2.2 AA contrast against the dark background. The
+  error text was `#c0392b`, a colour the buttons use as a *background*, which
+  left it at 2.93:1 inside dialogs; secondary text stacked `opacity` on top of
+  an already translucent `--color-text`, multiplying to 3.8:1; and both count
+  badges put white on a green worth 2.10:1. Nothing on the page is large enough
+  for the 3:1 exception, so all of it needed 4.5:1. The new
+  `--color-text-muted` replaces the `opacity` pairs, and the input's focus ring
+  moved off a green that sat at 2.75:1 on the field it outlines.
+
+### Removed
+
+- The global `a` rule inherited from the Vue starter. Every link in the app
+  already set its own colour, so the rule's colour never rendered and `.green`
+  was never used — but its `padding: 3px` and green hover wash still reached
+  the short link in the history list, and the footer carried a
+  `background-color: transparent` whose only job was to cancel that wash.
+
 ### Added
 
 - The `GET /:code` 404 page sends `X-Content-Type-Options: nosniff` and
@@ -15,6 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   security headers at all.
 
 ### Changed
+
+- The app is dark-only. `base.css` had kept the Vue starter's second set of
+  light-mode variables, which no component was ever designed or tested against —
+  `HomeView.vue`'s hard-coded `#3a3a3a` input background left the typed URL at
+  1.04:1 against `--color-text`. The light values, the unused palette entries and
+  `--section-gap` are gone, `color-scheme: dark` covers the native controls, and
+  the 404 page in `functions/[code].ts` follows.
 
 - README documents `onRequestHead`: the export table lists it, the frontend-call
   table carries the probe, and the "visiting a short link" flowchart shows the

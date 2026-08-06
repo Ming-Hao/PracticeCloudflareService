@@ -245,7 +245,7 @@ async function onConfirmClearAll() {
   gap: 0.75rem;
   background: var(--color-background-mute);
   border-radius: 0 0.6rem 0.6rem 0;
-  border-left: 3px solid #2ecc71;
+  border-left: 3px solid var(--color-accent);
   padding: 1rem 1rem 1rem 0.85rem;
 }
 
@@ -291,13 +291,12 @@ async function onConfirmClearAll() {
 .history-empty {
   margin: 0;
   font-size: 0.85rem;
-  color: var(--color-text);
-  opacity: 0.7;
+  color: var(--color-text-muted);
 }
 
 .history-item-error {
   margin: 0;
   font-size: 0.85rem;
-  color: #c0392b;
+  color: var(--color-danger);
 }
 </style>

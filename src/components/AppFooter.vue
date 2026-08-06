@@ -66,7 +66,7 @@ const commitUrl = `${REPO_URL}/commit/${commit}`
 .version {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.85rem;
-  opacity: 0.6;
+  color: var(--color-text-muted);
 }
 
 /* The link and the hash share one hover group, so the pointer can travel
@@ -82,10 +82,8 @@ const commitUrl = `${REPO_URL}/commit/${commit}`
   align-items: center;
   gap: 0.4rem;
   font-size: 0.95rem;
-  color: inherit;
+  color: var(--color-text-muted);
   text-decoration: none;
-  opacity: 0.75;
-  padding: 0;
 }
 
 .repo-icon {
@@ -97,9 +95,8 @@ const commitUrl = `${REPO_URL}/commit/${commit}`
 .hash {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.85rem;
-  color: inherit;
+  color: var(--color-text-muted);
   text-decoration: none;
-  padding: 0;
 }
 
 .deploy {
@@ -107,7 +104,7 @@ const commitUrl = `${REPO_URL}/commit/${commit}`
   align-items: center;
   gap: 0.45rem;
   font-size: 0.95rem;
-  opacity: 0.6;
+  color: var(--color-text-muted);
 }
 
 /* Cloudflare orange, the one saturated colour down here — it reads as a logo
@@ -117,33 +114,36 @@ const commitUrl = `${REPO_URL}/commit/${commit}`
   height: 22px;
   fill: #f6821f;
   flex: none;
+  /* .deploy dimmed the mark along with its text until the text moved to
+     --color-text-muted. A brand logo carries no contrast requirement, so the
+     dimming stays here rather than being dropped. */
+  opacity: 0.6;
 }
 
+/* Everything in here is scoped to pointers that can hover: a touch device never
+   hides the hash, so it needs no rule of its own to show it again. */
 @media (hover: hover) {
+  .repo {
+    transition: color 0.25s;
+  }
+
   /* Hidden at rest, and not a click target while invisible. */
   .hash {
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.25s;
+    transition:
+      opacity 0.25s,
+      color 0.25s;
   }
 
   .repo-group:hover .hash {
-    opacity: 0.6;
+    opacity: 1;
     pointer-events: auto;
   }
 
   .repo:hover,
   .hash:hover {
-    opacity: 1;
-    color: hsla(160, 100%, 37%, 1);
-    background-color: transparent;
-  }
-}
-
-/* No hover on touch, so the hash would be unreachable — just show it. */
-@media (hover: none) {
-  .hash {
-    opacity: 0.6;
+    color: var(--color-accent);
   }
 }
 </style>

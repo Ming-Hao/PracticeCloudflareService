@@ -152,16 +152,16 @@ input {
 
 input:focus {
   outline: none;
-  border-color: #1e8e5a;
+  border-color: var(--color-accent);
 }
 
 .error {
-  color: #c0392b;
+  color: var(--color-danger);
   margin-top: 1rem;
 }
 
 .short-url {
-  color: #2ecc71;
+  color: var(--color-accent);
   word-break: break-all;
 }
 
@@ -211,7 +211,7 @@ input:focus {
   gap: 0.5rem;
   margin: 0;
   font-weight: 600;
-  color: #2ecc71;
+  color: var(--color-accent);
 }
 
 .dialog-icon {
@@ -222,8 +222,9 @@ input:focus {
   height: 1.5rem;
   flex-shrink: 0;
   border-radius: 50%;
-  background: #2ecc71;
-  color: #fff;
+  background: var(--color-accent);
+  /* Dark label: --color-accent is a foreground colour, and #fff on it is 2.10:1. */
+  color: var(--color-background);
   font-size: 0.9rem;
 }
 
