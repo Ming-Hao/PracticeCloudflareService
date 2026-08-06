@@ -57,7 +57,15 @@ svg { width: 16px; height: 16px; flex-shrink: 0 }
 </html>`,
     {
       status: 404,
-      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+      // A Function response never sees public/_headers, so the two headers below are set here
+      // rather than inherited. The CSP there is not repeated: this page loads nothing external
+      // and runs no script, so it would only be ceremony.
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+      },
     }
   );
 }

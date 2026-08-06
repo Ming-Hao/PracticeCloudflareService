@@ -318,3 +318,16 @@ test('GET /:code — the 404 is not cacheable', async () => {
     assert.equal(res.headers.get('Cache-Control'), 'no-store')
   })
 })
+
+// `public/_headers` reaches static responses only, so this page — assembled in code — starts
+// with none of it. Reconstructing the full CSP here buys nothing on a page with no script and
+// no form, but these two cost one header each, and leaving them off makes a deliberate gap
+// look like an oversight.
+test('GET /:code — the 404 page sets the headers `_headers` cannot reach', async () => {
+  await withTestDb(async (db) => {
+    const res = await onRequestGet(createContext({ db, params: { code: 'NOPE00' } }))
+
+    assert.equal(res.headers.get('X-Content-Type-Options'), 'nosniff')
+    assert.equal(res.headers.get('X-Frame-Options'), 'DENY')
+  })
+})
