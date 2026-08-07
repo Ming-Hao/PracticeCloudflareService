@@ -8,8 +8,14 @@ import type { EncryptedRecord, IdentityRecord } from '../historyDb.ts'
  * interchangeable for as long as something checks that they behave alike.
  *
  * `records` and `identities` are handed back so tests can assert on what reached storage.
+ *
+ * `options.failDeleteRecord` makes `deleteRecord` reject, for exercising failure paths such as
+ * removeStaleLocalOnly. It defaults off, so the contract-checked default behaviour is unchanged
+ * and historyDb.contract.test.ts still sees the two implementations agree.
  */
-export function createFakeDb(): { deps: HistoryDbDeps; records: EncryptedRecord[]; identities: IdentityRecord[] } {
+export function createFakeDb(
+  options: { failDeleteRecord?: boolean } = {},
+): { deps: HistoryDbDeps; records: EncryptedRecord[]; identities: IdentityRecord[] } {
   const records: EncryptedRecord[] = []
   const identities: IdentityRecord[] = []
   return {
@@ -23,6 +29,7 @@ export function createFakeDb(): { deps: HistoryDbDeps; records: EncryptedRecord[
         return [...records]
       },
       async deleteRecord(id) {
+        if (options.failDeleteRecord) throw new Error('fake deleteRecord failure')
         const index = records.findIndex((r) => r.id === id)
         if (index !== -1) records.splice(index, 1)
       },

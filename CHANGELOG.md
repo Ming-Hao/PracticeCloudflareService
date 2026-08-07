@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `removeStaleLocalOnly` no longer drops a failed IndexedDB delete on the floor.
+  It cleared the UI list synchronously but discarded the `deleteRecord` promise,
+  so a rejection went unhandled and the record survived in storage — reappearing
+  on the next unlock. The rejection is now caught and logged.
+
 - Three places the 1.7.2 contrast pass left short of WCAG 2.2 AA.
   `--color-text-muted` and `--color-danger` were measured against
   `--color-background-soft`, the drawer's own background, but

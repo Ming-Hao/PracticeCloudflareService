@@ -225,7 +225,13 @@ export function createHistoryStore(deps: HistoryDeps = { ...historyDb, fetch: gl
   /** Server already reports this link as gone (404) — clear the local copy without calling the delete API. */
   function removeStaleLocalOnly(entry: HistoryEntry | SavedEntry): void {
     if ('recordId' in entry) {
-      void deps.deleteRecord(entry.recordId)
+      // The list is filtered synchronously below, so a rejected deleteRecord leaves the record
+      // in IndexedDB while it is gone from the UI — it reappears on the next loadFromLocal. Log
+      // it rather than dropping the rejection: the stale-link flow (HistoryItem.vue) is not async
+      // and has nowhere to surface it, but a silent failure here is the worst kind to diagnose.
+      deps.deleteRecord(entry.recordId).catch((err) => {
+        console.error('Failed to remove stale history record:', err)
+      })
       savedList.value = savedList.value.filter((e) => e.recordId !== entry.recordId)
     } else {
       sessionList.value = sessionList.value.filter((e) => e.short_code !== entry.short_code)

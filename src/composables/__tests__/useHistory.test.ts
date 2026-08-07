@@ -310,6 +310,31 @@ test('removeStaleLocalOnly: given a SavedEntry, removes it via the IndexedDB bra
   assert.equal(records.length, 0)
 })
 
+// A failing deleteRecord must not surface as an unhandled rejection: the caller (onConfirmStale
+// in HistoryItem.vue) is not async, so the composable catches and logs instead of dropping it.
+// The synchronous filter still runs, so the UI clears even though the record survives in storage.
+test('removeStaleLocalOnly: a rejected deleteRecord is caught and logged, not left unhandled', async (t) => {
+  const errors: unknown[][] = []
+  t.mock.method(console, 'error', (...args: unknown[]) => {
+    errors.push(args)
+  })
+
+  const { deps: dbDeps } = createFakeDb({ failDeleteRecord: true })
+  const fakeFetch = createFakeFetch([])
+  const store = createHistoryStore({ ...dbDeps, fetch: fakeFetch.fetch })
+
+  store.savedList.value = [{ ...makeEntry('AAAAAA'), recordId: 'rec-1' }]
+  store.removeStaleLocalOnly({ ...makeEntry('AAAAAA'), recordId: 'rec-1' })
+
+  // Synchronous branch: the list is cleared before the rejection settles.
+  assert.equal(store.savedList.value.length, 0)
+
+  // Let the rejected deleteRecord promise settle so the .catch runs.
+  await Promise.resolve()
+  assert.equal(errors.length, 1)
+  assert.match(String(errors[0]?.[0]), /Failed to remove stale history record/)
+})
+
 test('removeStaleLocalOnly: given a HistoryEntry, only touches sessionList and never calls fetch', () => {
   const { store, fakeFetch } = createStore()
   const entry = makeEntry('AAAAAA')
