@@ -154,6 +154,8 @@ test('DELETE /:code — correct token deletes: 200 and deleted_at is set', async
     assert.equal(res.status, 200)
     const link = await getLink(db, 'AAAAAA')
     assert.notEqual(link.deleted_at, null)
+    // Same ISO 8601 shape as created_at, not SQLite's CURRENT_TIMESTAMP format
+    assert.match(link.deleted_at!, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
   })
 })
 

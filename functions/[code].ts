@@ -155,9 +155,11 @@ export async function onRequestDelete(
     return Response.json({ short_code: code });
   }
 
+  // ISO 8601 with an explicit Z, matching how created_at is written in api/shorten.ts —
+  // SQLite's CURRENT_TIMESTAMP has no timezone marker and reads as local time.
   await env.DB.prepare(
-    "UPDATE links SET deleted_at = CURRENT_TIMESTAMP WHERE short_code = ?"
-  ).bind(code).run();
+    "UPDATE links SET deleted_at = ? WHERE short_code = ?"
+  ).bind(new Date().toISOString(), code).run();
 
   return Response.json({ short_code: code });
 }

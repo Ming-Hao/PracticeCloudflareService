@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `DELETE /:code` now writes `deleted_at` as ISO 8601 with an explicit `Z`,
+  the same way `created_at` is written, instead of SQLite's `CURRENT_TIMESTAMP`.
+  Nothing reads the column as a time yet, so this is consistency rather than a
+  fix. Rows soft-deleted earlier keep the old format.
+
 ## [1.7.3] - 2026-08-07
 
 ### Security
