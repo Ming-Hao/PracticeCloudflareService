@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- `POST /api/shorten` now requires `Content-Type: application/json` and answers
+  415 otherwise. `request.json()` ignored the header, leaving the endpoint open
+  to a cross-site `<form enctype="text/plain">` — a CORS simple request with no
+  preflight. The attacker never reads the response, so never learns the
+  `delete_token`, but every row created that way is unremovable.
+
 - `POST /api/shorten` now rejects a URL that carries userinfo (`user:pass@host`).
   Because `target_url` keeps the raw string, those credentials would otherwise
   reach `GET /:code`'s `Location` header, and from there logs and browser

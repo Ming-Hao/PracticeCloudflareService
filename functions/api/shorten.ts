@@ -88,6 +88,17 @@ export async function onRequestPost(
 ): Promise<Response> {
   const { request, env } = context;
 
+  // request.json() ignores Content-Type, which would leave this endpoint reachable from a
+  // cross-site <form enctype="text/plain">: that is a CORS simple request, sent without a
+  // preflight, and its body can be crafted into valid JSON. The attacker never reads the
+  // response — so never learns the delete_token — but every row created this way is
+  // unremovable, since no one holds its token. Require JSON explicitly to close that path.
+  // Split on ';' so a charset parameter (application/json; charset=utf-8) still passes.
+  const mediaType = (request.headers.get("Content-Type") ?? "").split(";")[0].trim().toLowerCase();
+  if (mediaType !== "application/json") {
+    return Response.json({ error: "Content-Type must be application/json" }, { status: 415 });
+  }
+
   let url: unknown;
   try {
     // A type argument here would only be a claim about the body: the typeof check below is

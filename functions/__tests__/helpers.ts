@@ -69,6 +69,7 @@ export function createContext({
   url = 'https://example.test/',
   body,
   rawBody,
+  headers,
   params = {},
 }: {
   db: D1Database
@@ -76,6 +77,9 @@ export function createContext({
   url?: string
   body?: unknown
   rawBody?: string
+  // Overrides the default `Content-Type: application/json` sent with a body — pass `{}` to
+  // send no Content-Type at all. Omit it to keep the JSON default every other caller relies on.
+  headers?: Record<string, string>
   params?: Record<string, string>
 }): TestContext {
   const waitUntilTasks: Promise<unknown>[] = []
@@ -84,10 +88,12 @@ export function createContext({
       method,
       // rawBody bypasses JSON.stringify — used to simulate a malformed request body.
       ...(rawBody !== undefined
-        ? { body: rawBody, headers: { 'Content-Type': 'application/json' } }
+        ? { body: rawBody, headers: headers ?? { 'Content-Type': 'application/json' } }
         : body === undefined
-          ? {}
-          : { body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } }),
+          ? headers === undefined
+            ? {}
+            : { headers }
+          : { body: JSON.stringify(body), headers: headers ?? { 'Content-Type': 'application/json' } }),
     }),
     env: { DB: db },
     params,

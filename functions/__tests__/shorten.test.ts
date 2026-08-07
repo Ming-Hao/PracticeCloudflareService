@@ -39,6 +39,51 @@ test('valid http and https URLs return 200', async () => {
   })
 })
 
+// request.json() ignores Content-Type, so without this guard a cross-site
+// <form enctype="text/plain"> — a CORS simple request, sent with no preflight — reaches this
+// endpoint and creates a row no one can delete (the attacker never sees the delete_token).
+test('a request without a Content-Type returns 415', async () => {
+  await withTestDb(async (db) => {
+    const res = await onRequestPost(
+      createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url: 'https://example.com' }, headers: {} }),
+    )
+    assert.equal(res.status, 415)
+    assert.equal(await countRows(db), 0)
+  })
+})
+
+test('a text/plain Content-Type carrying valid JSON returns 415', async () => {
+  await withTestDb(async (db) => {
+    const res = await onRequestPost(
+      createContext({
+        db,
+        method: 'POST',
+        url: SHORTEN_URL,
+        body: { url: 'https://example.com' },
+        headers: { 'Content-Type': 'text/plain' },
+      }),
+    )
+    assert.equal(res.status, 415)
+    assert.equal(await countRows(db), 0)
+  })
+})
+
+// The charset parameter must not be mistaken for a different media type: split on ';' first.
+test('an application/json Content-Type with a charset parameter is accepted', async () => {
+  await withTestDb(async (db) => {
+    const res = await onRequestPost(
+      createContext({
+        db,
+        method: 'POST',
+        url: SHORTEN_URL,
+        body: { url: 'https://example.com' },
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      }),
+    )
+    assert.equal(res.status, 200)
+  })
+})
+
 test('a non-http(s) protocol (ftp://) returns 400', async () => {
   await withTestDb(async (db) => {
     const res = await onRequestPost(createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url: 'ftp://example.com' } }))
