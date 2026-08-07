@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Three places the 1.7.2 contrast pass left short of WCAG 2.2 AA.
+  `--color-text-muted` and `--color-danger` were measured against
+  `--color-background-soft`, the drawer's own background, but
+  `.history-item-target`, `.history-empty` and `.history-item-error` render
+  inside `.history-section`, which paints `--color-background-mute` over it.
+  One shade lighter, one shade less contrast: they landed at 4.47:1 and 4.23:1.
+  The muted alpha goes to `0.54` and the danger red to `#f16b68`, both now
+  measured against mute. The two `--color-danger-wash` values follow its RGB so
+  the hover wash and the icon on top of it stay one red.
+
 ## [1.7.2] - 2026-08-06
 
 ### Fixed

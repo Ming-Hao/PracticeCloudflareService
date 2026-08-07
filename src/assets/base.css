@@ -22,21 +22,28 @@
   --color-heading: #ffffff;
   --color-text: rgba(235, 235, 235, 0.64);
   /* Secondary text. Use this rather than stacking `opacity` on --color-text: the
-     two alphas multiply, and 0.64 x 0.7 lands at 3.8:1 on --color-background-soft,
-     under the 4.5:1 WCAG 1.4.3 asks of text this size. Nothing here is large
-     enough to qualify for the 3:1 exception. */
-  --color-text-muted: rgba(235, 235, 235, 0.52);
+     two alphas multiply, and 0.64 x 0.7 lands at 3.7:1, under the 4.5:1 WCAG 1.4.3
+     asks of text this size. Nothing here is large enough to qualify for the 3:1
+     exception. Measure against --color-background-mute, not --color-background-soft:
+     the drawer's .history-section paints mute over the soft drawer, so the text
+     inside it sits one shade lighter than the panel it appears to be on, and that
+     is the binding case. At 0.52 it still missed there (4.47:1). */
+  --color-text-muted: rgba(235, 235, 235, 0.54);
 
   --color-accent: #2ecc71;
   --color-accent-surface: #1c8555;
   --color-accent-surface-hover: #19794c;
 
-  --color-danger: #ef5350;
+  /* Also measured against --color-background-mute, for the same reason as
+     --color-text-muted above: .history-item-error renders inside .history-section. */
+  --color-danger: #f16b68;
   --color-danger-surface: #c0392b;
   --color-danger-surface-hover: #a5311f;
-  /* The 10%/50% washes .btn-danger paints behind and around itself on hover. */
-  --color-danger-wash: rgba(239, 83, 80, 0.1);
-  --color-danger-wash-border: rgba(239, 83, 80, 0.5);
+  /* The 10%/50% washes .btn-danger paints behind and around itself on hover. Keep
+     the RGB in step with --color-danger — the icon it sits under uses that, and the
+     two reading as different reds is the only way this drifts. */
+  --color-danger-wash: rgba(241, 107, 104, 0.1);
+  --color-danger-wash-border: rgba(241, 107, 104, 0.5);
 }
 
 *,
