@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- `POST /api/shorten` now rejects a URL that carries userinfo (`user:pass@host`).
+  Because `target_url` keeps the raw string, those credentials would otherwise
+  reach `GET /:code`'s `Location` header, and from there logs and browser
+  history. The host-based checks never saw the userinfo, which also let
+  `https://trusted.example@evil.example` phishing forms through.
+
 ### Fixed
 
 - Three places the 1.7.2 contrast pass left short of WCAG 2.2 AA.

@@ -125,6 +125,15 @@ export async function onRequestPost(
     if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
       return Response.json({ error: "Please provide a valid URL starting with http:// or https://" }, { status: 400 });
     }
+    // Rejected, not stripped: target_url stores the raw string, so stripping the userinfo here
+    // would validate one string and store another — the same split that let \0\n\r through
+    // before they were caught on the raw input above. Credentials in a shortened link also flow
+    // straight into GET /:code's Location header, and from there into logs and browser history.
+    // The host-based checks below only see parsedUrl.hostname, so the userinfo is invisible to
+    // them; https://trusted.example@evil.example is the classic @-confusion phishing form.
+    if (parsedUrl.username || parsedUrl.password) {
+      return Response.json({ error: "URL must not contain a username or password" }, { status: 400 });
+    }
     // Refuse to shorten links pointing back at this service, which would redirect to itself.
     // Partial protection only: this compares against the hostname the request came in on, so a
     // deployment reachable under several hostnames (e.g. *.pages.dev plus a custom domain) can

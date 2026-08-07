@@ -77,6 +77,36 @@ test('URLs holding a character that is illegal in a Location header return 400',
   })
 })
 
+// A URL carrying userinfo (user:pass@host) clears every host-based check — the self-hostname
+// and isPrivateHostname steps only see parsedUrl.hostname, so the credentials before the @ are
+// invisible to them. target_url keeps the raw string, so those credentials would land verbatim
+// in the Location header (and from there in logs and history), and https://trusted.example@evil
+// is a classic @-confusion phishing form. Both must be rejected.
+test('a URL carrying userinfo (username and/or password) returns 400 and stores no row', async () => {
+  await withTestDb(async (db) => {
+    for (const url of [
+      'http://user:pass@example.com/',
+      'http://user@example.com/',
+      'https://accounts.example.com@evil.example/',
+    ]) {
+      const res = await onRequestPost(createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url } }))
+      const body = await res.json<{ error: string }>()
+      assert.equal(res.status, 400, `expected ${JSON.stringify(url)} to be rejected`)
+      assert.match(body.error, /username or password/)
+      assert.equal(await countRows(db), 0, `expected ${JSON.stringify(url)} to create no row`)
+    }
+  })
+})
+
+// An @ after the host is part of the path, not userinfo — new URL() leaves username/password
+// empty — so the check above must not touch it.
+test('a URL with an @ in the path (not userinfo) is accepted', async () => {
+  await withTestDb(async (db) => {
+    const res = await onRequestPost(createContext({ db, method: 'POST', url: SHORTEN_URL, body: { url: 'http://example.com/@notuserinfo' } }))
+    assert.equal(res.status, 200)
+  })
+})
+
 // These two currently pass by coincidence — new URL(123) and new URL(undefined)
 // both throw, landing in the same catch as a genuinely malformed URL string. P0-4
 // will replace that coincidence with an explicit typeof check; this test protects
