@@ -333,3 +333,74 @@ test('GET /:code — the 404 page sets the headers `_headers` cannot reach', asy
     assert.equal(res.headers.get('X-Frame-Options'), 'DENY')
   })
 })
+
+// A database that faults on every read, standing in for D1 being transiently unavailable.
+// Only the prepare().bind().first() path these three handlers take is implemented, so it
+// cannot satisfy D1Database structurally — the assertion keeps createContext's contract
+// honest for every other caller instead of widening it to accommodate this one stub.
+const failingDb = {
+  prepare() {
+    return {
+      bind() {
+        return this
+      },
+      async first() {
+        throw new Error('D1_ERROR: no such table: links')
+      },
+    }
+  },
+} as unknown as D1Database
+
+// Without a catch the rejection escapes the handler, and what a visitor gets is the platform's
+// own error page rather than anything this project wrote. These three pin that each entrypoint
+// answers in the shape its caller already expects: a page for the human, a bare status for the
+// probe, JSON for the script.
+test('GET /:code — a database fault answers with a readable 500 page', async (t) => {
+  // The fault below is manufactured here, and the handler logging it is the behaviour we want
+  // in production. Silenced so the stack trace does not read as a genuine test failure.
+  t.mock.method(console, 'error', () => {})
+
+  const res = await onRequestGet(createContext({ db: failingDb, params: { code: 'AAAAAA' } }))
+  const body = await res.text()
+
+  assert.equal(res.status, 500)
+  assert.match(res.headers.get('Content-Type') ?? '', /text\/html/)
+  assert.match(body, /^<!doctype html>/i)
+  assert.match(body, /href="\/"/)
+})
+
+// Same reasoning as the 404's no-store, and more pressing: a fault is by definition temporary,
+// so a cached 500 would outlive the outage that produced it.
+test('GET /:code — the 500 page is not cacheable and sets the headers `_headers` cannot reach', async (t) => {
+  t.mock.method(console, 'error', () => {})
+
+  const res = await onRequestGet(createContext({ db: failingDb, params: { code: 'AAAAAA' } }))
+
+  assert.equal(res.headers.get('Cache-Control'), 'no-store')
+  assert.equal(res.headers.get('X-Content-Type-Options'), 'nosniff')
+  assert.equal(res.headers.get('X-Frame-Options'), 'DENY')
+})
+
+// 500 rather than 404 is what makes this useful: `resolveLinkClick` treats only a 404 as a dead
+// link, so a fault here navigates instead of telling the user their link is gone.
+test('HEAD /:code — a database fault returns 500 with no body', async (t) => {
+  t.mock.method(console, 'error', () => {})
+
+  const res = await onRequestHead(createContext({ db: failingDb, params: { code: 'AAAAAA' } }))
+
+  assert.equal(res.status, 500)
+  assert.equal(await res.text(), '')
+})
+
+test('DELETE /:code — a database fault returns 500 as JSON', async (t) => {
+  t.mock.method(console, 'error', () => {})
+
+  const res = await onRequestDelete(
+    createContext({ db: failingDb, method: 'DELETE', params: { code: 'AAAAAA' }, body: { delete_token: 'token-abc' } }),
+  )
+
+  assert.equal(res.status, 500)
+  assert.match(res.headers.get('Content-Type') ?? '', /application\/json/)
+  const body = await res.json<{ error: string }>()
+  assert.equal(typeof body.error, 'string')
+})

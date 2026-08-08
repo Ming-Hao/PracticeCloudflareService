@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The three handlers in `functions/[code].ts` now catch database faults instead
+  of letting them escape. A transient D1 error reached the visitor as the
+  platform's own error page, next to a styled 404 page it never got to use.
+  `GET` answers with a 500 page, `HEAD` with a bare 500, `DELETE` with 500 JSON.
+  `HEAD` deliberately avoids 404 there: the frontend reads that as a dead link
+  and would drop the user's local copy of a link that still exists.
+
 ### Changed
 
 - `DELETE /:code` now writes `deleted_at` as ISO 8601 with an explicit `Z`,

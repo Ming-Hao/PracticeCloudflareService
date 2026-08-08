@@ -78,6 +78,41 @@ Open <http://localhost:8788>. Static responses come from Cloudflare's asset hand
 the only local setup where `_headers` and the `exclude` list in `_routes.json` have any effect — on
 :5173 those responses come from Vite.
 
+### Forcing a database fault
+
+Every handler in `functions/[code].ts` catches its own D1 failure and answers in the shape its caller
+already expects. The unit tests cover those branches with a stub; renaming the table away is how to
+exercise the same paths against a real local D1.
+
+```sh
+npx wrangler d1 execute shortlink-db --local --command "ALTER TABLE links RENAME TO links_off"
+```
+
+| Request | Response |
+| --- | --- |
+| `GET /:code` | 500 + the `serverErrorPage()` HTML |
+| `HEAD /:code` | bare 500 — **not** 404 |
+| `DELETE /:code` | 500 JSON, so the frontend can still `await res.json()` |
+
+`HEAD` is the one worth looking at: `resolveLinkClick` treats only a 404 as a dead link, so a 404
+here would tell users their link is gone because the database blinked, and the frontend would drop
+their local copy of a link that still exists.
+
+**Create the short link before breaking the table.** `POST /api/shorten` reads the same table, so
+nothing can be shortened while it is renamed.
+
+Checking `DELETE` through the history UI has to happen on :8788, for the proxy reason above — on
+:5173 the request reaches Vite, which answers with the SPA, so `res.ok` is true and the delete looks
+like it succeeded. On :8788 the entry stays in the list instead, with `Failed to delete short link
+(status 500)` under it.
+
+Restore the table afterwards, then reload and confirm an unknown code gives the 404 page again —
+that also proves the rename took effect rather than `wrangler pages dev` holding the old schema:
+
+```sh
+npx wrangler d1 execute shortlink-db --local --command "ALTER TABLE links_off RENAME TO links"
+```
+
 ## Pages Functions routing
 
 Cloudflare Pages Functions map routes using two conventions, both handled by the Cloudflare
