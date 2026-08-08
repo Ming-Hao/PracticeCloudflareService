@@ -1,16 +1,27 @@
-// The only error response a person reads rather than a script: a visitor gets here by clicking
-// a link, not by calling an API, so this branch answers with a page while the DELETE branches
-// keep returning JSON for `await res.json()`.
+// The shell both error pages share. They are the only responses here a person reads rather
+// than a script: a visitor arrives by clicking a link, not by calling an API, so these
+// branches answer with a page while the DELETE branches keep returning JSON for
+// `await res.json()`.
 //
 // The CSS is inline because a Function response cannot reference the hashed bundle Vite emits,
-// which also puts this page outside the `public/_headers` CSP — that policy covers static
+// which also puts these pages outside the `public/_headers` CSP — that policy covers static
 // responses only. Colours and the button are copied from src/assets/base.css and buttons.css;
 // nothing imports them here, so editing those files will not update this page.
 //
-// `no-store` for the same reason as the redirect below. A code that 404s today is simply
-// unallocated — `short_code` is UNIQUE so a soft-deleted one is never reissued, but an unused
-// one can be handed out tomorrow, and a cached 404 would outlive the link it denies.
-function notFoundPage() {
+// Both headers below are set in code because a Function response never sees public/_headers.
+// The CSP there is not repeated: these pages load nothing external and run no script, so it
+// would only be ceremony. `no-store` is on both for reasons the two callers give.
+interface ErrorPageOptions {
+  status: number;
+  title: string;
+  heading: string;
+  body: string;
+}
+
+// `heading` and `body` are interpolated raw. Both callers pass literals written here, and
+// nothing from the request reaches this function — `params.code` is never shown. Keep it
+// that way, or this becomes an injection point.
+function errorPage({ status, title, heading, body }: ErrorPageOptions) {
   return new Response(
     `<!doctype html>
 <html lang="en">
@@ -20,7 +31,7 @@ function notFoundPage() {
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#181818">
 <meta name="robots" content="noindex">
-<title>Link not found</title>
+<title>${title}</title>
 <style>
 :root {
   color-scheme: dark;
@@ -42,8 +53,8 @@ svg { width: 16px; height: 16px; flex-shrink: 0 }
 </style>
 </head>
 <body>
-<h1>This short link doesn't exist</h1>
-<p>It was deleted, or the address was mistyped.</p>
+<h1>${heading}</h1>
+<p>${body}</p>
 <a class="btn-primary" href="/">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -55,10 +66,7 @@ svg { width: 16px; height: 16px; flex-shrink: 0 }
 </body>
 </html>`,
     {
-      status: 404,
-      // A Function response never sees public/_headers, so the two headers below are set here
-      // rather than inherited. The CSP there is not repeated: this page loads nothing external
-      // and runs no script, so it would only be ceremony.
+      status,
       headers: {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store",
@@ -69,69 +77,32 @@ svg { width: 16px; height: 16px; flex-shrink: 0 }
   );
 }
 
-// The second page a person reads, for the case notFoundPage() cannot describe: the lookup never
-// got an answer, so we do not know whether the link exists. Kept separate from notFoundPage()
-// rather than parameterized because the two say opposite things — one is a dead end, this one
-// is "come back in a minute" — but the markup below is a copy of it, so a change to the styling
-// of one belongs in the other. Both are copies of src/assets/base.css in turn; nothing imports
-// across that boundary and no test compares them.
-//
-// `no-store` matters more here than on the 404: a fault is by definition temporary, and a cached
-// 500 would keep answering for a link that came back the moment the database did.
-function serverErrorPage() {
-  return new Response(
-    `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#181818">
-<meta name="robots" content="noindex">
-<title>Something went wrong</title>
-<style>
-:root {
-  color-scheme: dark;
-  --color-background: #181818; --color-heading: #fff; --color-text-soft: rgba(235,235,235,.64);
+// `no-store` for the same reason as the redirect below. A code that 404s today is simply
+// unallocated — `short_code` is UNIQUE so a soft-deleted one is never reissued, but an unused
+// one can be handed out tomorrow, and a cached 404 would outlive the link it denies.
+function notFoundPage() {
+  return errorPage({
+    status: 404,
+    title: "Link not found",
+    heading: "This short link doesn't exist",
+    body: "It was deleted, or the address was mistyped.",
+  });
 }
-body { margin: 0; min-height: 100vh; display: grid; align-content: start; justify-content: center;
-  justify-items: center;
-  gap: .75rem; padding: 10vh 2rem 2rem; text-align: center; line-height: 1.6; font-size: 15px;
-  color: var(--color-text-soft); background: var(--color-background);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  -webkit-font-smoothing: antialiased }
-h1 { margin: 0; font-size: 2rem; line-height: 1.3; font-weight: 500; color: var(--color-heading) }
-p { margin: 0 }
-.btn-primary { display: inline-flex; align-items: center; gap: .4rem; margin-top: .75rem;
-  padding: .5rem 1rem; border-radius: .4rem; font-size: 1rem; background: #1c8555; color: #fff;
-  text-decoration: none; white-space: nowrap }
-.btn-primary:hover { background: #19794c }
-svg { width: 16px; height: 16px; flex-shrink: 0 }
-</style>
-</head>
-<body>
-<h1>Something went wrong</h1>
-<p>This short link could not be looked up just now. Please try again in a moment.</p>
-<a class="btn-primary" href="/">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-  </svg>
-  Create a new short link
-</a>
-</body>
-</html>`,
-    {
-      status: 500,
-      headers: {
-        "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": "no-store",
-        "X-Content-Type-Options": "nosniff",
-        "X-Frame-Options": "DENY",
-      },
-    }
-  );
+
+// The second page a person reads, for the case notFoundPage() cannot describe: the lookup
+// never got an answer, so we do not know whether the link exists. The two say opposite things
+// — one is a dead end, this one is "come back in a minute" — which is why they stay separate
+// functions over a shared shell rather than one page with a swapped status.
+//
+// `no-store` matters more here than on the 404: a fault is by definition temporary, and a
+// cached 500 would keep answering for a link that came back the moment the database did.
+function serverErrorPage() {
+  return errorPage({
+    status: 500,
+    title: "Something went wrong",
+    heading: "Something went wrong",
+    body: "This short link could not be looked up just now. Please try again in a moment.",
+  });
 }
 
 // Params<'code'> types params.code as `string | string[]` because that is what a catch-all

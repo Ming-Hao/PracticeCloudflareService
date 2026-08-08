@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nothing reads the column as a time yet, so this is consistency rather than a
   fix. Rows soft-deleted earlier keep the old format.
 
+- `notFoundPage()` and `serverErrorPage()` now share one `errorPage()` helper and
+  differ only in status, title, heading and body. The same 49 lines of markup were
+  previously held twice.
+
 ### Added
 
 - `scripts/preview-error-pages.ts` renders the two `GET /:code` error pages to

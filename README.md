@@ -84,6 +84,9 @@ Every handler in `functions/[code].ts` catches its own D1 failure and answers in
 already expects. The unit tests cover those branches with a stub; renaming the table away is how to
 exercise the same paths against a real local D1.
 
+This is about the responses. To look at how the two error *pages* are styled, nothing needs breaking
+— `node scripts/preview-error-pages.ts` writes both to `mockups/` from the handler itself.
+
 ```sh
 npx wrangler d1 execute shortlink-db --local --command "ALTER TABLE links RENAME TO links_off"
 ```
