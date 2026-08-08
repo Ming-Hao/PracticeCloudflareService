@@ -23,6 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nothing reads the column as a time yet, so this is consistency rather than a
   fix. Rows soft-deleted earlier keep the old format.
 
+### Added
+
+- `scripts/preview-error-pages.ts` renders the two `GET /:code` error pages to
+  `mockups/` as standalone HTML. Both are assembled inside `functions/[code].ts`,
+  so looking at them otherwise means running `wrangler pages dev` against a
+  deliberately broken D1. The script calls the handler with a stub database, so
+  what it writes is what a visitor receives.
+
 ## [1.7.3] - 2026-08-07
 
 ### Security

@@ -1,9 +1,14 @@
-// TSConfig for the Pages Functions tests. Same Workers globals as tsconfig.functions.json,
-// plus the Node globals the test runner needs. It has no `exclude`: copying the product
-// project's `exclude: ["functions/__tests__/*"]` would drop the only directory this project
-// checks, leaving a d.ts-only project that passes without checking anything.
+// TSConfig for the code that imports functions/ from Node: the Pages Functions tests, and
+// the scripts/ tools that render Function output offline. Same Workers globals as
+// tsconfig.functions.json, plus the Node globals both need. It has no `exclude`: copying
+// the product project's `exclude: ["functions/__tests__/*"]` would drop the very directory
+// this project checks, leaving a d.ts-only project that passes without checking anything.
+//
+// Holding both under one project is deliberate — they share the hazard the CLAUDE.md
+// Gotchas entry describes, where `URL` resolves to the Workers declaration and cannot be
+// handed to a node: API expecting a PathLike.
 {
-  "include": ["functions/__tests__/*", "worker-configuration.d.ts"],
+  "include": ["functions/__tests__/*", "scripts/*", "worker-configuration.d.ts"],
   "compilerOptions": {
     "target": "esnext",
     "module": "esnext",
